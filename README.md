@@ -24,7 +24,7 @@ What's new in v1.0.5 - 20/Sep/2023
 - geoip2dat updated too! older versions won't work anymore. Sorry.
 - more flowers
 ```
-*The ASN file is 3x larger and takes up too much memory to provide search accuracy. A country block can contain more than 1 ASN, and if we just use the ASN database as a reference, although it has more than 500K network ranges, it only has 60% coverage, while the country database has 440K network ranges, but has more than 99.50% coverage. If we only use the country base as a reference, we may face the problem of a CIDR having more than 1 ASN. We are testing splitting these networks and merging them safely and without reducing coverage for a next version.*
+*The ASN file is 3x larger and takes up too much memory to provide search accuracy. A country block can contain more than 1 ASN, and if we just use the ASN database as a reference, although it has more than 500K network ranges, it only has 85.11% coverage, while the country database has 440K network ranges, but has more than 99.50% coverage. If we only use the country base as a reference, we may face the problem of a CIDR having more than 1 ASN. We are testing splitting these networks and merging them safely and without reducing coverage for a next version.*
 
 ![](https://raw.githubusercontent.com/rabuchaim/geoip2fast/main/images/geoip2fast_selftest.jpg)
 
