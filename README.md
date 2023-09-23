@@ -187,8 +187,6 @@ resolver1.telesp.net.br
 
 With an virtual machine with 1 CPU and 4Gb of RAM, we have lookups **lower than 0,00003 seconds**. And if the lookup still in library´s internal cache, the elapsed time goes down to 0,000003 seconds. **GeoIP2Fast can do more than 100K queries per second, per core**. It takes less than 0,07 seconds to load the datafile into memory and get ready to lookup. Use ```verbose=True``` to create the object GeoIP2Fast to see the spent time to start.
 
-![](https://raw.githubusercontent.com/rabuchaim/geoip2fast/main/images/speed_test.jpg)
-
 Now some tests are included in the geoip2fast.py file. 
 
 ```bash
