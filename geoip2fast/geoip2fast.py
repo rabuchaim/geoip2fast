@@ -156,8 +156,11 @@ def print_elapsed_time(method):
 ##──── Function to check the memory use ────────────────────────────────────────────────────────────────────────────────────────
 def get_mem_usage()->float:
     ''' Memory usage in MiB '''
-    with open('/proc/self/status') as f:
-        memusage = f.read().split('VmRSS:')[1].split('\n')[0][:-3]
+    try:
+        with open('/proc/self/status') as f:
+            memusage = f.read().split('VmRSS:')[1].split('\n')[0][:-3]
+    except FileNotFoundError:
+        return 0.0
     return float(memusage.strip()) / 1024
 
 ##──── GeoIP2Fast Exception Class ────────────────────────────────────────────────────────────────────────────────────────────────    
