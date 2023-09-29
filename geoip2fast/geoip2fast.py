@@ -348,7 +348,7 @@ class GeoIP2Fast(object):
         
         if geoip2fast_data_file != "":
             try:
-                if os.is_file(geoip2fast_data_file) == True:
+                if os.path.isfile(geoip2fast_data_file) == True:
                     self.data_file = geoip2fast_data_file
             except Exception as ERR:
                 raise GeoIPError("Unable to access the specified file %s. %s"%(geoip2fast_data_file,str(ERR)))
