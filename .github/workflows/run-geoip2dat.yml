@@ -1,0 +1,146 @@
+name: Update GeoIP2Fast dat files
+on:
+  repository_dispatch:
+  workflow_dispatch:
+  schedule:
+    - cron: 0 22 * * 2,5
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4.1.1
+    - name: Download Geolite2 CSV files from Maxmind
+      run: |
+        mkdir -p geolite2
+        wget -nv -O GeoLite2-ASN-CSV.zip "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-ASN-CSV&license_key=${{ secrets.MAXMIND_KEY }}&suffix=zip"
+        wget -nv -O GeoLite2-Country-CSV.zip "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-Country-CSV&license_key=${{ secrets.MAXMIND_KEY }}&suffix=zip"
+        wget -nv -O GeoLite2-City-CSV.zip "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City-CSV&license_key=${{ secrets.MAXMIND_KEY }}&suffix=zip"
+    - name: Decompress Geolite2 zip files
+      uses: TonyBogdanov/zip@1.0
+      with:
+          args: unzip -qq GeoLite2-*-CSV.zip
+    - name: Prepare ENV variables
+      run: |
+        TAG_DATE=$(ls -d GeoLite2-Country-CSV_* | awk -F '_' '{print $2}')
+        echo "TAG_DATE=$TAG_DATE" >> $GITHUB_ENV
+        cat $GITHUB_ENV > Maxmind-Geolite2-CSV_$TAG_DATE
+    - name: Copy GeoLite2 CSV files
+      run: |
+        cp -v GeoLite*/*.csv geolite2        
+
+    - name: Create v1.1.X geoip2fast.dat.gz with Country + IPv4
+      run: |
+        python3 geoip2fast-legacy/geoip2fast/geoip2dat.py --country-dir ./geolite2/ --output-dir ./
+        mv -vf geoip2fast.dat.gz geoip2fast-legacy/geoip2fast/geoip2fast.dat.gz
+    - name: Create v1.1.X geoip2fast.dat.gz with Country + IPv4 + IPv6
+      run: |
+        python3 geoip2fast-legacy/geoip2fast/geoip2dat.py --country-dir ./geolite2/ --output-dir ./ --with-ipv6
+        mv -vf geoip2fast.dat.gz geoip2fast-legacy/geoip2fast/geoip2fast-ipv6.dat.gz
+    - name: Create v1.1.X geoip2fast.dat.gz with Country + ASN + IPv4
+      run: |
+        python3 geoip2fast-legacy/geoip2fast/geoip2dat.py --country-dir ./geolite2/ --asn-dir ./geolite2/ --output-dir ./
+        mv -vf geoip2fast.dat.gz geoip2fast-legacy/geoip2fast/geoip2fast-asn.dat.gz
+    - name: Create v1.1.X geoip2fast.dat.gz with Country + ASN + IPv4 + IPv6
+      run: |
+        python3 geoip2fast-legacy/geoip2fast/geoip2dat.py --country-dir ./geolite2/ --asn-dir ./geolite2/ --output-dir ./ --with-ipv6
+        PERCENTAGE=$(python3 geoip2fast-legacy/geoip2fast/geoip2fast.py --coverage | grep IPv4 | awk '{print $4}' | sed 's/%//g')
+        python3 geoip2fast-legacy/geoip2fast/geoip2fast.py --coverage > "IPv4_Coverage_${PERCENTAGE}_percent.txt"  
+        mv -vf geoip2fast.dat.gz geoip2fast-legacy/geoip2fast/geoip2fast-asn-ipv6.dat.gz
+
+    - name: Create v1.2.X geoip2fast.dat.gz with City + IPv4
+      run: |
+        python3 geoip2fast/geoip2dat.py --city-dir ./geolite2/ --output-dir ./
+        mv -vf geoip2fast.dat.gz geoip2fast/geoip2fast-city.dat.gz
+    - name: Create v1.2.X geoip2fast.dat.gz with City + IPv4 + IPv6
+      run: |
+        python3 geoip2fast/geoip2dat.py --city-dir ./geolite2/ --output-dir ./ --with-ipv6
+        mv -vf geoip2fast.dat.gz geoip2fast/geoip2fast-city-ipv6.dat.gz
+    - name: Create v1.2.X geoip2fast.dat.gz with City + ASN + IPv4 
+      run: |
+        python3 geoip2fast/geoip2dat.py --city-dir ./geolite2/ --asn-dir ./geolite2/ --output-dir ./
+        mv -vf geoip2fast.dat.gz geoip2fast/geoip2fast-city-asn.dat.gz
+    - name: Create v1.2.X geoip2fast.dat.gz with City + ASN + IPv4 + IPv6
+      run: |
+        python3 geoip2fast/geoip2dat.py --city-dir ./geolite2/ --asn-dir ./geolite2/ --output-dir ./ --with-ipv6
+        mv -vf geoip2fast.dat.gz geoip2fast/geoip2fast-city-asn-ipv6.dat.gz
+    - name: Create v1.2.X geoip2fast.dat.gz with Country + IPv4
+      run: |
+        python3 geoip2fast/geoip2dat.py --country-dir ./geolite2/ --output-dir ./
+        mv -vf geoip2fast.dat.gz geoip2fast/geoip2fast.dat.gz
+    - name: Create v1.2.X geoip2fast.dat.gz with Country + IPv4 + IPv6
+      run: |
+        python3 geoip2fast/geoip2dat.py --country-dir ./geolite2/ --output-dir ./ --with-ipv6
+        mv -vf geoip2fast.dat.gz geoip2fast/geoip2fast-ipv6.dat.gz
+    - name: Create v1.2.X geoip2fast.dat.gz with Country + ASN + IPv4
+      run: |
+        python3 geoip2fast/geoip2dat.py --country-dir ./geolite2/ --asn-dir ./geolite2/ --output-dir ./
+        mv -vf geoip2fast.dat.gz geoip2fast/geoip2fast-asn.dat.gz
+    - name: Create v1.2.X geoip2fast.dat.gz with Country + ASN + IPv4 + IPv6
+      run: |
+        python3 geoip2fast/geoip2dat.py --country-dir ./geolite2/ --asn-dir ./geolite2/ --output-dir ./ --with-ipv6
+        PERCENTAGE=$(python3 geoip2fast/geoip2fast.py --coverage | grep IPv4 | awk '{print $4}' | sed 's/%//g')
+        python3 geoip2fast/geoip2fast.py --coverage > "IPv4_Coverage_${PERCENTAGE}_percent.txt"  
+        mv -vf geoip2fast.dat.gz geoip2fast/geoip2fast-asn-ipv6.dat.gz
+
+    - name: Push to "main" branch
+      run: |
+        git config user.name "${{ github.actor }}"
+        git config user.email "${{ github.actor }}@users.noreply.github.com"
+        cd geoip2fast
+        git add geoip2fast*.dat.gz
+        git commit -m "Updated dat.gz files from Maxmind-${{ env.TAG_DATE }} for v1.2.X"
+        cd ../geoip2fast-legacy/geoip2fast/
+        git add geoip2fast*.dat.gz
+        git commit -m "Updated dat.gz files from Maxmind-${{ env.TAG_DATE }} for v1.1.X"
+        git remote set-url origin "https://${{ secrets.TOKEN }}@github.com/${{ github.repository }}"
+        git push -f origin main
+
+    - name: Delete LATEST and LEGACY release
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        gh release list
+        gh release delete LATEST
+        gh release delete LEGACY
+        gh release list          
+        
+    - name: Upload to Release Legacy v1.1.X
+      uses: softprops/action-gh-release@v0.1.15
+      env:
+        GITHUB_TOKEN: ${{ secrets.TOKEN }}
+      with:
+        name: Latest DAT files ${{ env.TAG_DATE }} (Legacy)
+        tag_name: LEGACY
+        body: Latest dat.gz files for GeoIP2Fast v1.1.X (LEGACY) with Maxmind Geolite2 database from ${{ env.TAG_DATE }}<br><br>**To download dat.gz files for GeoIP2Fast v1.2.X, go to tag [LATEST](https://github.com/rabuchaim/geoip2fast/releases/tag/LATEST)**.
+        token: ${{ secrets.TOKEN }}
+        files: |
+          Maxmind-Geolite2-CSV_*
+          IPv4_Coverage_*
+          geoip2fast-legacy/geoip2fast/*.gz
+
+    - name: Upload to Release Latest v1.2.X
+      uses: softprops/action-gh-release@v0.1.15
+      env:
+        GITHUB_TOKEN: ${{ secrets.TOKEN }}
+      with:
+        name: Latest DAT files ${{ env.TAG_DATE }}
+        tag_name: LATEST
+        body: Latest dat.gz files for GeoIP2Fast v1.2.X (LATEST) with Maxmind Geolite2 database from ${{ env.TAG_DATE }}.<br><br>**To download dat.gz files for GeoIP2Fast v1.1.X, go to tag [LEGACY](https://github.com/rabuchaim/geoip2fast/releases/tag/LEGACY)**.
+        token: ${{ secrets.TOKEN }}
+        files: |
+          Maxmind-Geolite2-CSV_*
+          IPv4_Coverage_*
+          geoip2fast/*.gz
+
+    - name: Set LATEST release
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        gh release list
+        gh release edit LATEST --latest
+        gh release list
+          
+permissions:
+  contents: write
+  discussions: write
