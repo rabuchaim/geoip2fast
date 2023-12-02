@@ -96,14 +96,14 @@ jobs:
         git remote set-url origin "https://${{ secrets.TOKEN }}@github.com/${{ github.repository }}"
         git push -f origin main
 
-    - name: Delete LATEST and LEGACY release
-      env:
-        GH_TOKEN: ${{ github.token }}
-      run: |
-        gh release list
-        gh release delete LATEST
-        gh release delete LEGACY
-        gh release list          
+    # - name: Delete LATEST and LEGACY release
+    #   env:
+    #     GH_TOKEN: ${{ github.token }}
+    #   run: |
+    #     gh release list
+    #     gh release delete LATEST
+    #     gh release delete LEGACY
+    #     gh release list          
         
     - name: Upload to Release Legacy v1.1.X
       uses: softprops/action-gh-release@v0.1.15
