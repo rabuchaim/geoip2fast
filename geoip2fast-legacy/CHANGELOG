@@ -1,0 +1,136 @@
+
+.oPYo.               o  .oPYo. .oPYo.  ooooo                 o  
+8    8               8  8    8     `8  8                     8  
+8      .oPYo. .oPYo. 8 o8YooP'    oP' o8oo   .oPYo. .oPYo.  o8P 
+8   oo 8oooo8 8    8 8  8      .oP'    8     .oooo8 Yb..     8  
+8    8 8.     8    8 8  8      8'      8     8    8   'Yb.   8  
+`YooP8 `Yooo' `YooP' 8  8      8ooooo  8     `YooP8 `YooP'   8  
+:....8 :.....::.....:..:..:::::.......:..:::::.....::.....:::..:
+:::::8 :::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+:::::..:::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+Author: Ricardo Abuchaim - ricardoabuchaim@gmail.com
+        https://github.com/rabuchaim/geoip2fast/
+
+License: MIT
+
+############################################################################
+What's new in v1.1.10 - 27/Nov/2023
+- Automatic download of dat.gz files.
+  try: geoip2fast --download-all
+
+What's new in v1.1.9 - 22/Nov/2023
+- DAT files updated with MAXMIND:GeoLite2-CSV_20231121
+- Fix in memory usage under MacOS
+- Fix a problem when loading specific datafiles
+- a new method to return the path of the dat.gz file that is currently being used
+    from geoip2fast import GeoIP2Fast
+    G = GeoIP2Fast(geoip2fast_data_file="/tmp/geoip2fast-asn.dat.gz")
+    G.get_database_path()
+
+What's new in v1.1.8 - 14/Nov/2023
+- DAT files updated with MAXMIND:GeoLite2-CSV_20231114
+- Fix in './geoip2fast.py --coverage' test when using IPv6 database
+
+What's new in v1.1.6 - 10/Nov/2023
+- DAT files updated with MAXMIND:GeoLite2-CSV_20231110
+
+What's new in v1.1.5 - 03/Nov/2023
+- DAT files updated with MAXMIND:GeoLite2-CSV_20231103
+- Fully tested with Python 3.12 and Python 3.13 (> 150.000 lookups/sec)
+- Fixed an issue in the function that adjusts the terminal window of the 
+  geoip2dat.py file. This problem prevented the geoip2dat.py script from 
+  being executed by crontab.
+- Added entry_points to setup.py, now it's possible to run geoip2fast and
+  geoip2dat as an executable under Windows. If it doesn't work, you need 
+  to add the path of your python scripts directory to your PATH environment
+  variable. 
+- To see the path of your scripts directory on win32, run: pip show geoip2fast
+- Check the "Location" information, and change the "site-packages" word
+  to "scripts" and add this path to your PATH environment variable (google it).
+- After this change, you can run geoip2fast and geoip2dat from any path
+  of your Windows command prompt. Sometimes this change is unnecessary, 
+  try running 'geoip2fast' from any path of your Win32 command prompt.
+
+What's new in v1.1.4 - 27/Oct/2023
+- DAT files updated with MAXMIND:GeoLite2-CSV_20231027
+
+What's new in v1.1.3 - 20/Oct/2023
+- DAT files updated with MAXMIND:GeoLite2-CSV_20231020
+- Bug fix in the coverage test of v1.1.2. Didn´t affect the search accuracy.
+
+What's new in v1.1.2 - 03/Oct/2023
+- DAT files updated with MAXMIND:GeoLite2-Country-ASN-CSV_20231003
+- IPv6 transparent support!!! the same class, you just need to choose
+  which data file you wanna use.
+- fast as always! the lookup speed is the same for any data file.
+- removed some useless code and put some colored flowers.
+
+What's new in v1.0.6 - 01/Oct/2023
+- geoip2fast.dat.gz updated with MAXMIND:GeoLite2-Country-CSV_20230929
+- geoip2fast-asn.dat.gz updated with MAXMIND:GeoLite2-ASN-CSV_20230929
+- bug fix: Fail on Windows while getting a memory usage
+- bug fix: Error when specifying the data file manually
+
+What's new in v1.0.5 - 20/Sep/2023
+- geoip2fast.dat.gz updated with MAXMIND:GeoLite2-Country-ASN-CSV_20230919
+- faster than ever!!! a lookup around ~0.00001
+- A new option in geoip2dat to create .dat.gz with asn support: --asn-dir
+- ASN support - the dat file already has support for ASN of the network 
+  ranges. The footprint was incresed to 64Mb. The speed is the same.
+- If you want, you can create an another dat file only with country data,
+  just use the option --country-dir without the option --asn-dir
+- geoip2dat updated too! older versions won't work anymore. Sorry.
+- more flowers
+
+What's new in v1.0.4 - 13/Sep/2023
+- geoip2fast.dat.gz updated with MAXMIND:GeoLite2-Country-CSV_20230912
+- fix in search of IPs that end in ".0"
+- fix in _locate_database() function that search dat.gz file in
+  $current_application_file path and library path 
+- added some cli parameters: --speed-test, --self-test, and --coverage 
+  ( try: ./geoip2fast.py --coverage -v to see all networks included in 
+  dat file. )
+- added a parameter in tests: --missing-ips  (take care, uses 100% of CPU)
+- geoip2dat updated too! older versions won't work anymore. Sorry.
+- more flowers
+
+What's new in v1.0.3 - 08/Sep/2023
+- geoip2fast.dat.gz updated with MAXMIND:GeoLite2-Country-CSV_20230908
+- IMPROVED SPEED!! >100.000 LOOKUPS PER SECOND! GeoIP2Flash!
+- geoip2fast.dat.gz decreased to ONE MEGABYTE! (-60%)
+- RAM footprint dropped to 25 MiB! (-50%)
+- load time around ~0,05 seconds! (-50%)
+- the number of networks and content still the same, we just 
+  converted all data to integers and sliced the lists a lot! This
+  was necessary to implement the ASN data (not yet).
+- geoip2dat updated to create the new dat file structure
+- inserted a tag in dat file to record the version.
+- as requested, property elapsed_time_hostname for hostnames lookups
+
+What's new in v1.0.2 - 04/Sep/2023
+- geoip2fast.dat.gz updated with MAXMIND:GeoLite2-Country-CSV_20230901
+- fully tested with Python 3.11.5. Much faster than 3.10.12 >100K lookups/sec.
+- fix encoding of pp_json() method. Now it's showing all chars as it is.
+- in verbose mode it is now showing the memory footprint.
+- new test files at /usr/local/lib/python3.10/dist-packages/geoip2fast/tests/
+- new class CIDRDetail will be used to create gepip2fast.dat file
+- geoip2dat - a script to import Maxmind-Country-CSV into geoip2fast.dat.gz.
+  You can update your geoip2fast.dat.gz file whenever you want. It should work 
+  with paid version also. Please let me know if there are any problems.
+- put some flowers;
+
+What's new in v1.0.1 - 1º/Sep/2023
+- geoip2fast.dat.gz updated with MAXMIND:GeoLite2-Country-CSV_20230901
+- improved speed in >20%! removed ipaddress module. Now we do some IP calcs.
+- new methods to set the error code for the situations PRIVATE NETWORKS and for 
+  NETWORKS NOT FOUND:
+    GeoIP2Fast.set_error_code_private_networks(new_value) 
+    GeoIP2Fast.set_error_code_network_not_found(new_value)
+- new method to calculate the current speed. Returns a value of current lookups per 
+  seconds or print a formatted result:
+    GeoIP2Fast.calculate_speed(print_result=True)
+- new method to calculate how many IPv4 of all internet are covered by geoip2fast.dat 
+  file. Returns a percentage relative to all possible IPv4 on the internet or print a 
+  formatted result. Useful to track the changes in getip2fast.dat.gz file:
+    GeoIP2Fast.calculate_coverage(print_result=True)
