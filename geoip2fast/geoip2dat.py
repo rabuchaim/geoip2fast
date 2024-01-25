@@ -623,7 +623,7 @@ def run(country_dir,asn_dir,city_dir,output_dir,language="en",source_info="",deb
                                     counter += 1
                                     try:
                                         cidr, geoname_id, registered_country_id, represented_country_id, \
-                                            is_anonymous_proxy, is_satellite_provider = map(str.strip, fields)                                    
+                                            is_anonymous_proxy, is_satellite_provider,is_anycast = map(str.strip, fields)                                    
                                         if is_IPV6:
                                             CIDRInfo = CIDRv6Detail(cidr)
                                         else:
@@ -872,7 +872,7 @@ def run(country_dir,asn_dir,city_dir,output_dir,language="en",source_info="",deb
                                     counter += 1
                                     try:
                                         cidr,geoname_id,registered_country_geoname_id,represented_country_geoname_id,is_anonymous_proxy,\
-                                            is_satellite_provider,postal_code,latitude,longitude,accuracy_radius = map(str.strip, fields)
+                                            is_satellite_provider,postal_code,latitude,longitude,accuracy_radius,is_anycast = map(str.strip, fields)
                                         if is_IPV6:
                                             CIDRInfo = CIDRv6Detail(cidr)
                                         else:
