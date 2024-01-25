@@ -558,9 +558,9 @@ def run(country_dir,asn_dir,output_dir,language="en",with_ipv6=False,source_info
                                     break
                                 else:
                                     try:
-                                        LINE = line.split(",")
+                                        LINE = line.strip().split(",")
                                         cidr, geoname_id, registered_country_id, represented_country_id, \
-                                            is_anonymous_proxy, is_satellite_provider = LINE
+                                            is_anonymous_proxy, is_satellite_provider,is_anycast = LINE
                                         if is_IPV6:
                                             CIDRInfo = CIDRv6Detail(cidr)
                                         else:
