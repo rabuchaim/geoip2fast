@@ -1,4 +1,4 @@
-# GeoIP2Fast v1.2.1
+# GeoIP2Fast v1.2.2
 
 GeoIP2Fast is the fastest GeoIP2 country/city/asn lookup library. A search takes less than 0.00003 seconds. It has its own data file updated with Maxmind-Geolite2-CSV, supports IPv4 and IPv6, works on Python3, Pypy3 and is Pure Python!
 
@@ -36,44 +36,58 @@ City databases are not included in the pip installation package, if you want to:
 **The new v1.2.X databases are not compatible with versions equal to or older than v1.1.X, and vice versa, obviously. The last version with support only for countries and ASN only is v1.1.X, which is still available with this command line: ```pip install geoip2fast==1.1.10```.**
 
 ```
-What's new in v1.2.1 - 01/Dec/2023
-- DAT files updated with MAXMIND:GeoLite2-CSV_20231201
-- Improved speed! faster than ever!
-- Automatic updates! you can update to the newest dat.gz file via command line or via code
-  Using command line:
-      # to update all files by saving them in the library directory
-      geoip2fast --update-all -v
+What's new in v1.2.2 - 20/Jun/2024
+- DAT files updated with MAXMIND:GeoLite2-CSV_20240618
+- Removed the line "sys.tracebacklimit = 0" that was causing some problems 
+  in Django. This line is unnecessary (https://github.com/rabuchaim/geoip2fast/issues/10)
+- Maxmind inserted a new field into the CSV files called "is_anycast", and this broke 
+  geoip2dat.py CSV reader. Insertion of the new field in the list of "fields" of
+  the CSV reader that generates the .dat.gz files so that they can be updated.
 
-      # to update a single file replacing the default file 
-      geoip2fast --update-file geoip2fast-city-asn-ipv6.dat.gz --dest geoip2fast.dat.gz -v
+- There are 2 reduced versions available for you to copy and paste
+  into your own code without any dependencies and fast as always!
+  Check these files in your library path:
+    - geoip2fastmin.py (429 lines) 
+    - geoip2fastminified.py (183 lines)
+  It's in testing, but please open an issue if you have any problems 
+  with either of these 2 versions.
 
-  Using the class GeoIP2Fast:
-      from geoip2fast import GeoIP2Fast
-      from pprint import pprint
-      G = GeoIP2Fast(verbose=True)
-      G.get_database_path()
-      
-      # to update a single file replacing the default file 
-      update_file_result = G.update_file(filename="geoip2fast-asn-ipv6.dat.gz",destination="geoip2fast.dat.gz",verbose=True)
-      pprint(update_file_result,sort_dicts=False)
-      G.reload_data(verbose=True)
+- Removed functools.lru_cache. It is very useful when you have a function 
+  that is repeated several times but takes a long time, which is not the 
+  case of GeoIP2Fast where functions take milliseconds. On each call, 
+  functools checks whether the value is already cached or not, and this 
+  takes time. And we noticed that without functools and using the processor 
+  and operating system's own cache makes GeoIP2Fast much faster without it
+  even if you are searching for an IP for the first time.
+  You can run tests and you will see that without functools.lru_cache 
+  it is faster. If you want to use lru_cache, you can uncomment the 
+  respective lines of code. There are 5 lines commented with @functools.lru_cache 
 
-      # to update all files by saving them in the library directory
-      update_all_result = G.update_all(verbose=True)
-      pprint(update_all_result,sort_dicts=False)
-      G.reload_data(verbose=True)
+- As requested, 2 new methods to return a coverage of IPv4 and IPv6.
+    def get_ipv4_coverage()->float
+    def get_ipv6_coverage()->float
 
-      # to update all files SILENTLY
-      update_all_result = G.update_all(verbose=False)
-      errors_result = [item for item in update_all_result if item['error'] is not None]
-      if len(errors_result):
-         print(f"There were {str(len(errors_result))} update failures")
-      G.reload_data(verbose=False)
+- New function get_database_info() that returns a dictionary with 
+  detailed information about the data file currently in use.
 
-      # to update all files by saving them in the directory of your application
-      update_all_result = G.update_all(destination_path=".",verbose=True)
-      pprint(update_all_result,sort_dicts=False)
-      G.reload_data(verbose=True)
+- Made some adjustments to the --missing-ips and --coverage functions.  
+
+- Now you can specify the data filename to be used on geoip2fast cli:
+    geoip2fast geoip2fast-ipv6.dat.gz --self-test
+    geoip2fast 9.9.9.9,1.1.1.1,2a10:8b40:: geoip2fast-asn-ipv6.dat.gz
+
+- New functions to generate random IP addresses to be used in tests. 
+  Returns a list if more than 1 IP is requested, otherwise returns a 
+  string with only 1 IP address. If you request an IPv6 and the database
+  loaded does not have IPv6 data, returns False. And the fuction of
+  private address, returns an random IPv4 from network 10.0.0.0/8 or
+  172.16.0.0/12 or 192.168.0.0/16.
+    def generate_random_private_address(self,num_ips=1)->string or a list
+    def generate_random_ipv4_address(self,num_ips=1)->string or a list
+    def generate_random_ipv6_address(self,num_ips=1)->string or a list
+
+- Put some flowers
+
 ```
 <br>
 
@@ -311,7 +325,7 @@ Now some tests are included in the geoip2fast.py file.
 
 ```bash
 # geoip2fast -h
-GeoIP2Fast v1.2.1 Usage: geoip2fast.py [-h] [-v] [-d] <ip_address_1>,<ip_address_2>,<ip_address_N>,...
+GeoIP2Fast v1.2.2 Usage: geoip2fast.py [-h] [-v] [-d] <ip_address_1>,<ip_address_2>,<ip_address_N>,...
 
 Tests parameters:
   --self-test         Starts a self-test with some randomic IP addresses.
@@ -666,10 +680,10 @@ This is the best library to work with Maxmind paid subscription or with the free
 **\* Maxmind is a registered trademark** - https://www.maxmind.com
 
 ## TO DO list
-- a pure-python version for REDIS with a very small footprint (pure protocol, won´t use any REDIS library) **<<< On the way at https://github.com/rabuchaim/geoip2redis**
-- a GeoIP Server; **<<< On the way a docker container, your own GeoIP server inside your network. With rest API or socket (super fast)**
-- a mod_geoip2fast for NGINX;
+- a GeoIP2Fast Server that supports our dat.gz and any kind of mmdb file; **<<< In final tests! the FASTORNADO Server **
+- a version to support any kind of MMDB file with coordinates and more; **<<< ON THE WAY! **
 - a better manual, maybe at readthedocs.io;
+- a mod_geoip2fast for NGINX;
 - **Done in v1.1.10/v1.2.1** - automatic update of dat.gz files;
 - **Done in v1.2.0** - a version with cities;
 - **Done in v1.1.0** - *IPv6 support*.

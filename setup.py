@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='geoip2fast',
-    version='1.2.1',
+    version='1.2.2',
     description='GeoIP2Fast is the fastest GeoIP2 country/city/asn lookup library that supports IPv4 and IPv6. A search takes less than 0.00003 seconds. It has its own data file updated twice a week with Maxmind-Geolite2-CSV, supports IPv4/IPv6 and is Pure Python!',
     url='https://github.com/rabuchaim/geoip2fast',
     author='Ricardo Abuchaim',
@@ -45,7 +45,7 @@ setup(
             'geoip2dat = geoip2fast.geoip2dat:main_function'
         ]
     },
-    python_requires=">=3.7",    
+    python_requires=">=3.7",
     install_requires=[],
     classifiers=[
         'Development Status :: 5 - Production/Stable',
