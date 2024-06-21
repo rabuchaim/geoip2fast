@@ -3,9 +3,9 @@ from setuptools import setup, find_packages
 
 setup(
     name='geoip2fast',
-    version='1.1.10',
+    version='1.1.11',
     description='GeoIP2Fast is the fastest GeoIP2 country/asn lookup library that supports IPv4 and IPv6. A search takes less than 0.00003 seconds. It has its own data file updated twice a week with Maxmind-Geolite2-CSV, supports IPv4/IPv6 and is Pure Python!',
-    url='https://github.com/rabuchaim/geoip2fast/tree/main/geoip2fast',
+    url='https://github.com/rabuchaim/geoip2fast/tree/main/geoip2fast-legacy',
     author='Ricardo Abuchaim',
     author_email='ricardoabuchaim@gmail.com',
     maintainer='Ricardo Abuchaim',

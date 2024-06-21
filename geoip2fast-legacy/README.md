@@ -1,4 +1,4 @@
-# GeoIP2Fast v1.1.10
+# GeoIP2Fast v1.1.11
 
 GeoIP2Fast is the fastest GeoIP2 country/asn lookup library. A search takes less than 0.00003 seconds. It has its own data file updated with Maxmind-Geolite2-CSV, supports IPv4 and IPv6 and is Pure Python!
 
@@ -18,6 +18,15 @@ GeoIP2Fast returns ASN NAME, COUNTRY ISO CODE, COUNTRY NAME and CIDR. There is n
 **There is also version 1.2.X that returns city names, visit the previous directory [https://github.com/rabuchaim/geoip2fast/](https://github.com/rabuchaim/geoip2fast/)**
 
 ```
+What's new in v1.1.11 - 20/Jun/2024
+- Moved line "sys.tracebacklimit = 0" to the main_function() because 
+  was causing some problems in Django. This line is unnecessary to 
+  the GeoIP2Fast class and was there only for the command line use.
+  https://github.com/rabuchaim/geoip2fast/issues/10
+- Fix in geoip2dat.py so that future field insertions made 
+  by MaxMind in the CSV files no longer affect the creation of new 
+  dat.gz files.
+
 What's new in v1.1.10 - 22/Nov/2023
 - DAT files updated with MAXMIND:GeoLite2-CSV_20231201
 - Automatic updates! you can update to the newest dat.gz file via command line or via code
@@ -44,7 +53,7 @@ What's new in v1.1.10 - 22/Nov/2023
 
 ## Installation
 ```bash
-pip install geoip2fast==1.1.10
+pip install geoip2fast==1.1.11
 ```
 
 <br>
