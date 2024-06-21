@@ -1,4 +1,4 @@
-name: Update GeoIP2Fast dat files (v1.1.X and 1.2.X)
+name: Update GeoIP2Fast dat files
 on:
   repository_dispatch:
   workflow_dispatch:
@@ -44,8 +44,8 @@ jobs:
     - name: Create v1.1.X geoip2fast.dat.gz with Country + ASN + IPv4 + IPv6
       run: |
         python3 geoip2fast-legacy/geoip2fast/geoip2dat.py --country-dir ./geolite2/ --asn-dir ./geolite2/ --output-dir ./ --with-ipv6
-        PERCENTAGE=$(python3 geoip2fast-legacy/geoip2fast/geoip2fast.py --coverage | grep IPv4 | awk '{print $4}' | sed 's/%//g')
-        python3 geoip2fast-legacy/geoip2fast/geoip2fast.py --coverage > "IPv4_Coverage_${PERCENTAGE}_percent.txt"  
+        # PERCENTAGE=$(python3 geoip2fast-legacy/geoip2fast/geoip2fast.py --coverage | grep IPv4 | awk '{print $4}' | sed 's/%//g')
+        # python3 geoip2fast-legacy/geoip2fast/geoip2fast.py --coverage > "IPv4_Coverage_${PERCENTAGE}_percent.txt"
         mv -vf geoip2fast.dat.gz geoip2fast-legacy/geoip2fast/geoip2fast-asn-ipv6.dat.gz
 
     - name: Create v1.2.X geoip2fast.dat.gz with City + IPv4
@@ -79,8 +79,8 @@ jobs:
     - name: Create v1.2.X geoip2fast.dat.gz with Country + ASN + IPv4 + IPv6
       run: |
         python3 geoip2fast/geoip2dat.py --country-dir ./geolite2/ --asn-dir ./geolite2/ --output-dir ./ --with-ipv6
-        PERCENTAGE=$(python3 geoip2fast/geoip2fast.py --coverage | grep IPv4 | awk '{print $4}' | sed 's/%//g')
-        python3 geoip2fast/geoip2fast.py --coverage > "IPv4_Coverage_${PERCENTAGE}_percent.txt"  
+        # PERCENTAGE=$(python3 geoip2fast/geoip2fast.py --coverage | grep IPv4 | awk '{print $4}' | sed 's/%//g')
+        # python3 geoip2fast/geoip2fast.py --coverage > "IPv4_Coverage_${PERCENTAGE}_percent.txt"  
         mv -vf geoip2fast.dat.gz geoip2fast/geoip2fast-asn-ipv6.dat.gz
 
     - name: Push to "main" branch
