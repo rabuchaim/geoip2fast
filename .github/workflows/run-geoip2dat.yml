@@ -1,4 +1,4 @@
-name: Update GeoIP2Fast dat files
+name: Update GeoIP2Fast dat files (v1.1.X and 1.2.X)
 on:
   repository_dispatch:
   workflow_dispatch:
@@ -83,18 +83,18 @@ jobs:
         python3 geoip2fast/geoip2fast.py --coverage > "IPv4_Coverage_${PERCENTAGE}_percent.txt"  
         mv -vf geoip2fast.dat.gz geoip2fast/geoip2fast-asn-ipv6.dat.gz
 
-    # - name: Push to "main" branch
-    #   run: |
-    #     git config user.name "${{ github.actor }}"
-    #     git config user.email "${{ github.actor }}@users.noreply.github.com"
-    #     cd geoip2fast
-    #     git add geoip2fast*.dat.gz
-    #     git commit -m "Updated dat.gz files from Maxmind-${{ env.TAG_DATE }} for v1.2.X"
-    #     cd ../geoip2fast-legacy/geoip2fast/
-    #     git add geoip2fast*.dat.gz
-    #     git commit -m "Updated dat.gz files from Maxmind-${{ env.TAG_DATE }} for v1.1.X"
-    #     git remote set-url origin "https://${{ secrets.TOKEN }}@github.com/${{ github.repository }}"
-    #     git push -f origin main
+    - name: Push to "main" branch
+      run: |
+        git config user.name "${{ github.actor }}"
+        git config user.email "${{ github.actor }}@users.noreply.github.com"
+        cd geoip2fast
+        git add geoip2fast*.dat.gz
+        git commit -m "Updated dat.gz files from Maxmind-${{ env.TAG_DATE }} for v1.2.X"
+        cd ../geoip2fast-legacy/geoip2fast/
+        git add geoip2fast*.dat.gz
+        git commit -m "Updated dat.gz files from Maxmind-${{ env.TAG_DATE }} for v1.1.X"
+        git remote set-url origin "https://${{ secrets.TOKEN }}@github.com/${{ github.repository }}"
+        git push -f origin main
 
     - name: Delete LATEST and LEGACY release
       env:
