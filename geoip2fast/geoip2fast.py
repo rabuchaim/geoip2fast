@@ -2,7 +2,7 @@
 # encoding: utf-8
 # -*- coding: utf-8 -*-
 """
-GeoIP2Fast - Version v1.2.1
+GeoIP2Fast - Version v1.2.2
 
 Author: Ricardo Abuchaim - ricardoabuchaim@gmail.com
         https://github.com/rabuchaim/geoip2fast/
@@ -19,53 +19,54 @@ License: MIT
 :::::8 :::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 :::::..:::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
-What's new in v1.2.1 - 01/Dec/2023
-- DAT files updated with MAXMIND:GeoLite2-CSV_20231201
-- Improved speed! faster than ever!
-- Automatic updates! you can update to the newest dat.gz file via command line or via code
-  Using command line:
-      # to update all files by saving them in the library directory
-      geoip2fast --update-all -v
-
-      # to update a single file replacing the default file 
-      geoip2fast --update-file geoip2fast-city-asn-ipv6.dat.gz --dest geoip2fast.dat.gz -v
-
-  Using the class GeoIP2Fast:
-      from geoip2fast import GeoIP2Fast
-      from pprint import pprint
-      G = GeoIP2Fast(verbose=True)
-      G.get_database_path()
-      
-      # to update a single file replacing the default file 
-      update_file_result = G.update_file(filename="geoip2fast-asn-ipv6.dat.gz",destination="geoip2fast.dat.gz",verbose=True)
-      pprint(update_file_result,sort_dicts=False)
-      G.reload_data(verbose=True)
-
-      # to update all files by saving them in the library directory
-      update_all_result = G.update_all(verbose=True)
-      pprint(update_all_result,sort_dicts=False)
-      G.reload_data(verbose=True)
-
-      # to update all files SILENTLY
-      update_all_result = G.update_all(verbose=False)
-      errors_result = [item for item in update_all_result if item['error'] is not None]
-      if len(errors_result):
-         print(f"There were {str(len(errors_result))} update failures")
-      G.reload_data(verbose=False)
-
-      # to update all files by saving them in the directory of your application
-      update_all_result = G.update_all(destination_path=".",verbose=True)
-      pprint(update_all_result,sort_dicts=False)
-      G.reload_data(verbose=True)
-      
+What's new in v1.2.2 - 20/Jun/2024
+- DAT files updated with MAXMIND:GeoLite2-CSV_20240618
+- Removed the line "sys.tracebacklimit = 0" that was causing some problems 
+  in Django. This line is unnecessary (https://github.com/rabuchaim/geoip2fast/issues/10)
+- Maxmind inserted a new field into the CSV files called "is_anycast", and this broke 
+  geoip2dat.py CSV reader. Insertion of the new field in the list of "fields" of
+  the CSV reader that generates the .dat.gz files so that they can be updated.
+- There are 2 reduced versions available for you to copy and paste
+  into your own code without any dependencies and fast as always!
+  Check these files in your library path:
+    - geoip2fastmin.py (429 lines) 
+    - geoip2fastminified.py (183 lines)
+- As requested, 2 new methods to return a coverage of IPv4 and IPv6.
+    def get_ipv4_coverage()->float
+    def get_ipv6_coverage()->float
+- New function get_database_info() that returns a dictionary with 
+  detailed information about the data file currently in use.
+- Made some adjustments to the --missing-ips and --coverage functions.  
+- Now you can specify the data filename to be used on geoip2fast cli:
+    geoip2fast geoip2fast-ipv6.dat.gz --self-test
+    geoip2fast 9.9.9.9,1.1.1.1,2a10:8b40:: geoip2fast-asn-ipv6.dat.gz
+- New functions to generate random IP addresses to be used in tests. 
+  Returns a list if more than 1 IP is requested, otherwise returns a 
+  string with only 1 IP address. If you request an IPv6 and the database
+  loaded does not have IPv6 data, returns False. And the fuction of
+  private address, returns an random IPv4 from network 10.0.0.0/8 or
+  172.16.0.0/12 or 192.168.0.0/16.
+    def generate_random_private_address(self,num_ips=1)->string or a list
+    def generate_random_ipv4_address(self,num_ips=1)->string or a list
+    def generate_random_ipv6_address(self,num_ips=1)->string or a list
+- Removed functools.lru_cache. It is very useful when you have a function 
+  that is repeated several times but takes a long time, which is not the 
+  case of GeoIP2Fast where functions take milliseconds. On each call, 
+  functools checks whether the value is already cached or not, and this 
+  takes time. And we noticed that without functools and using the processor 
+  and operating system's own cache makes GeoIP2Fast much faster without it
+  even if you are searching for an IP for the first time.
+  If you want to use lru_cache, you can uncomment the respective lines 
+  of code. There are 5 lines commented with @functools.lru_cache 
+- Put some flowers
 """
 __appid__   = "GeoIP2Fast"
-__version__ = "1.2.1"
+__version__ = "1.2.2"
 
-import sys, os, math, ctypes, struct, socket, time, subprocess, random, binascii, functools
-import urllib.request, urllib.error, urllib.parse, gzip, pickle, json, random, bisect
-
+import sys, os, ctypes, struct, socket, time, subprocess, random, binascii, functools
+import urllib.request, urllib.error, urllib.parse, gzip, pickle, json, random, bisect, re, ipaddress
 import geoip2fast as _ 
+
 GEOIP2FAST_DAT_GZ_FILE = os.path.join(os.path.dirname(_.__file__),"geoip2fast.dat.gz")
 
 ##──── Define here what do you want to return if one of these errors occurs ─────────────────────────────────────────────────────
@@ -98,7 +99,6 @@ GEOIP_POSSIBLE_FILENAMES            = ['geoip2fast.dat.gz',
 _DEBUG = bool(os.environ.get("GEOIP2FAST_DEBUG",False))
 os.environ["PYTHONWARNINGS"]    = "ignore"
 os.environ["PYTHONIOENCODING"]  = "utf-8"        
-sys.tracebacklimit              = 0
 
 ##──── ANSI COLORS ───────────────────────────────────────────────────────────────────────────────────────────────────────────────
 def cRed(msg): return '\033[91m'+str(msg)+'\033[0m'
@@ -154,10 +154,22 @@ def get_mem_usage()->float:
 ##────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 ##──── IP MANIPULATION FUNCTIONS ─────────────────────────────────────────────────────────────────────────────────────────────────
-ipv4_to_int = lambda ipv4_address: struct.unpack('!I', socket.inet_aton(ipv4_address))[0]
-int_to_ipv4 = lambda num: socket.inet_ntoa(struct.pack('!I', num))
-ipv6_to_int = lambda ipv6_address: int.from_bytes(socket.inet_pton(socket.AF_INET6, ipv6_address), byteorder='big')
-int_to_ipv6 = lambda num: socket.inet_ntop(socket.AF_INET6, binascii.unhexlify(hex(num)[2:].zfill(32)))
+# ipv4_to_int = lambda ipv4_address: struct.unpack('!I', socket.inet_aton(ipv4_address))[0]
+def ipv4_to_int(ipv4_address):
+    return struct.unpack('>L', socket.inet_aton(ipv4_address))[0]
+
+# int_to_ipv4 = lambda iplong: socket.inet_ntoa(struct.pack('!I', iplong))
+def int_to_ipv4(iplong):
+    return socket.inet_ntoa(struct.pack('>L', iplong))
+
+# ipv6_to_int = lambda ipv6_address: int.from_bytes(socket.inet_pton(socket.AF_INET6, ipv6_address), byteorder='big')
+def ipv6_to_int(ipv6_address):
+    return int.from_bytes(socket.inet_pton(socket.AF_INET6, ipv6_address), byteorder='big')
+
+# int_to_ipv6 = lambda iplong: socket.inet_ntop(socket.AF_INET6, unhexlify(hex(iplong)[2:].zfill(32)))
+def int_to_ipv6(iplong):
+    return socket.inet_ntop(socket.AF_INET6, binascii.unhexlify(hex(iplong)[2:].zfill(32)))
+
 ##──── Number os possible IPs in a network range. (/0, /1 .. /8 .. /24 .. /30, /31, /32) ─────────────────────────────────────────
 ##──── Call the index of a list. Ex. numIPs[24] (is the number os IPs of a network range class C /24) ────────────────────────────
 numIPsv4 = sorted([2**num for num in range(0,33)],reverse=True) # from 0 to 32
@@ -169,6 +181,20 @@ MAX_IPv4 = numIPsv4[0]
 numHostsv4 = sorted([(2**num)-2 for num in range(0,33)],reverse=True) # from 0 to 32
 numHostsv6 = sorted([(2**num)-2 for num in range(0,129)],reverse=True) # from 0 to 128
 ##────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+##──── Join the splitted list ────────────────────────────────────────────────────────────────────────────────────────────────────
+def join_list(list_of_lists):
+    joined_list = []
+    for sublist in list_of_lists:
+        joined_list.extend(sublist)
+    return joined_list
+
+def split_list(lista, n):
+    sliced_lists = []
+    for i in range(0, len(lista), n):
+        sliced_lists.append(lista[i:i + n])
+    return sliced_lists
+##───────────────────────────'─────────────────────────────────────────────────────────────────────────────────────────────────────
 
 ##──── Format a number like 123456789 into 123.456.789 ───────────────────────────────────────────────────────────────────────────
 def format_num(number):
@@ -207,11 +233,20 @@ class CityDetail(object):
             self.name, self.subdivision_code, self.subdivision_name, self.subdivision2_code, self.subdivision2_name = city_string.split("|")
         except:
             self.name, self.subdivision_code, self.subdivision_name, self.subdivision2_code, self.subdivision2_name = GEOIP_INTERNAL_ERROR_STRING,"","","",""
+        self.latitude = None
+        self.longitude = None
+    def __init__121(self, city_string="||||||"):
+        try:
+            self.name, self.subdivision_code, self.subdivision_name, self.subdivision2_code, self.subdivision2_name, self.latitude, self.longitude = city_string.split("|")
+        except:
+            self.name, self.subdivision_code, self.subdivision_name, self.subdivision2_code, self.subdivision2_name, self.latitude, self.longitude = GEOIP_INTERNAL_ERROR_STRING,"","","","",0.0,0.0
     def to_dict(self):
         return {
             "name": self.name,
             "subdivision_code": self.subdivision_code,
             "subdivision_name": self.subdivision_name,
+            "latitude": self.latitude,
+            "longitude": self.longitude
         }
 ##──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -326,7 +361,7 @@ class GeoIPDetailCity(GeoIPDetail):
         base_dict = super().to_dict()
         base_dict['city'] = self.city.to_dict() 
         return base_dict
-
+    
 ##────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 class GeoIP2Fast(object):    
     """
@@ -385,7 +420,7 @@ class GeoIP2Fast(object):
                 else:
                     # If any file is specified without the path, try to locate it in the current directory or in the library directory
                     if geoip2fast_data_file.find("/") < 0:
-                        databasePath = self._locate_database_file(geoip2fast_data_file)
+                        databasePath = self.__locate_database_file(geoip2fast_data_file)
                         if databasePath is False:
                             raise GeoIPError("Unable to find GeoIP2Fast database file %s"%(os.path.basename(geoip2fast_data_file)))
                         else:
@@ -396,7 +431,7 @@ class GeoIP2Fast(object):
             except Exception as ERR:
                 raise GeoIPError("Unable to access the specified file %s. %s"%(geoip2fast_data_file,str(ERR)))
             
-        self._load_data(self.data_file, verbose)
+        self.__load_data(self.data_file, verbose)
 
     ##──── Function used to avoid "if verbose == True". The code is swaped at __init__ ───────────────────────────────────────────────
     def __print_verbose_empty(self,msg):return
@@ -408,10 +443,9 @@ class GeoIP2Fast(object):
     def _print_verbose(self,msg):
         print(msg,flush=True)
     ##────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-    
 
     ##──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-    def _locate_database_file(self, filename):
+    def __locate_database_file(self, filename):
         try:
             curDir = os.path.join(os.path.abspath(os.path.curdir),filename) # path of your application
             libDir = os.path.join(os.path.dirname(_.__file__),filename)       # path where the library is installed
@@ -427,7 +461,7 @@ class GeoIP2Fast(object):
             except Exception as ERR:
                 raise GeoIPError("Unable to determine the path of library %s - %s"%(filename,str(ERR)))
     ##──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-    def _load_data(self, gzip_data_file:str, verbose=False)->bool:        
+    def __load_data(self, gzip_data_file:str, verbose=False)->bool:        
         global __DAT_VERSION__, source_info, totalNetworks,mainListNamesCountry,geoipCountryNamesDict,geoipCountryCodesList,\
                mainIndex,mainListNamesCountry,mainListFirstIP,mainListIDCountryCodes,mainListNetlength,\
                mainIndexASN,mainListNamesASN,mainListFirstIPASN,mainListIDASN,mainListNetlengthASN,\
@@ -445,7 +479,7 @@ class GeoIP2Fast(object):
             if gzip_data_file == "":
                 gzip_data_file = GEOIP2FAST_DAT_GZ_FILE
                 try:
-                    databasePath = self._locate_database_file(os.path.basename(gzip_data_file))
+                    databasePath = self.__locate_database_file(os.path.basename(gzip_data_file))
                     if databasePath is False:
                         raise GeoIPError("(1) Unable to find GeoIP2Fast database file %s"%(os.path.basename(gzip_data_file)))
                     else:
@@ -458,30 +492,27 @@ class GeoIP2Fast(object):
         ##──── Open the dat.gz file ──────────────────────────────────────────────────────────────────────────────────────────────────────
         try:
             try:
-                inputFile = gzip.open(str(self.data_file),'rb')
-            except:
-                try:
-                    inputFile = open(str(self.data_file).replace(".gz",""),'rb')
-                    self.data_file = self.data_file.replace(".gz","")
-                except Exception as ERR:
-                    raise GeoIPError(f"Unable to find {gzip_data_file} or {gzip_data_file} {str(ERR)}")
+                if self.data_file.lower().endswith(".gz"):
+                    inputFile = gzip.open(str(self.data_file),'rb')
+                else:
+                    inputFile = open(str(self.data_file),'rb')
+                    self.data_file = self.data_file
+            except Exception as ERR:
+                raise GeoIPError(f"Unable to find {gzip_data_file} or {gzip_data_file} {str(ERR)}")
         except Exception as ERR:
             raise GeoIPError(f"Failed to 'load' GeoIP2Fast! the data file {gzip_data_file} appears to be invalid or does not exist! {str(ERR)}")
         ##────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────        
         
-        self._database_path = self.data_file
         ##──── Use -vvv on command line to see which dat.gz file is currently being used ─────────────────────────────────────────────────
-        if '-vvv' in sys.argv: 
-            print(f"Using datafila: {self.data_file}")
-            sys.exit(0)
+        self._database_path = os.path.realpath(self.data_file)
         
         ##──── Load the dat.gz file into memory ──────────────────────────────────────────────────────────────────────────────────────────
         try:
             self.clear_cache()
             __DAT_VERSION__, source_info, totalNetworks, mainDatabase = pickle.load(inputFile)
-            
-            if __DAT_VERSION__ != 120:
-                raise GeoIPError(f"Failed to pickle the data file {gzip_data_file}. Reason: Invalid version - requires 120, current {str(__DAT_VERSION__)}")
+          
+            if __DAT_VERSION__ != 120 and __DAT_VERSION__ != 121:
+                raise GeoIPError(f"Failed to pickle the data file {gzip_data_file}. Reason: Invalid version - requires 120/121, current {str(__DAT_VERSION__)}")
             
             self.source_info = source_info['info']
             self.country = source_info['country']
@@ -497,16 +528,23 @@ class GeoIP2Fast(object):
                 mainListFirstIPASN,mainListIDCountryCodes,mainListIDASN,mainListNetlength,mainListNetlengthASN = mainDatabase
             ##──── ONLY CITY ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────
             elif self.city == True and self.asn == False:
-                mainIndex,mainListNamesCountry,mainListNamesCity,mainListFirstIP,mainListIDCity,mainListNetlength = mainDatabase
+                if __DAT_VERSION__ == 120:
+                    mainIndex,mainListNamesCountry,mainListNamesCity,mainListFirstIP,mainListIDCity,mainListNetlength = mainDatabase
+                elif __DAT_VERSION__ == 121:
+                    CityDetail.__init__.__code__ = CityDetail.__init__121.__code__
+                    pass
             ##──── CITY WITH ASN ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
             elif self.city == True and self.asn == True:
-                mainIndex,mainIndexASN,mainListNamesCountry,mainListNamesCity,mainListNamesASN,\
-                mainListFirstIP,mainListFirstIPASN,mainListIDCity,mainListIDASN,mainListNetlength,mainListNetlengthASN = mainDatabase
+                if __DAT_VERSION__ == 120:
+                    mainIndex,mainIndexASN,mainListNamesCountry,mainListNamesCity,mainListNamesASN,\
+                    mainListFirstIP,mainListFirstIPASN,mainListIDCity,mainListIDASN,mainListNetlength,mainListNetlengthASN = mainDatabase
+                elif __DAT_VERSION__ == 121:
+                    pass
 
             self.ipv6 = mainIndex[-1] > numIPsv4[0]
             geoipCountryNamesDict = {item.split(":")[0]:item.split(":")[1] for item in mainListNamesCountry}
             geoipCountryCodesList = list(geoipCountryNamesDict.keys())
-                            
+
             inputFile.close()
             del inputFile
         except Exception as ERR:
@@ -539,7 +577,7 @@ class GeoIP2Fast(object):
         if verbose is not None:
             self.verbose = verbose
         self.is_loaded = False
-        return self._load_data(gzip_data_file=self.data_file,verbose=self.verbose)
+        return self.__load_data(gzip_data_file=self.data_file,verbose=self.verbose)
     
     @property
     def startup_line_text(self):
@@ -658,7 +696,17 @@ class GeoIP2Fast(object):
         except ValueError:
             return False            
 
-    @functools.lru_cache(maxsize=DEFAULT_LRU_CACHE_SIZE, typed=False)
+    def get_ipv4_coverage(self)->float:
+        """ Returns a percentage (float) compared with all possible IPsv4 """
+        return self.calculate_coverage(False,False)
+
+    def get_ipv6_coverage(self)->float:
+        """ Returns a percentage (float) compared with all possible IPsv6 """
+        global percentagev6
+        percentage_v4 = self.calculate_coverage(False,False)
+        return percentagev6
+        
+    # @functools.lru_cache(maxsize=DEFAULT_LRU_CACHE_SIZE, typed=False)
     def _main_index_lookup(self,iplong):
         try:
             matchRoot = bisect.bisect_right(mainIndex,iplong)-1
@@ -673,29 +721,29 @@ class GeoIP2Fast(object):
         except Exception as ERR:
             return GeoIPError("Failed at _main_index_lookup: %s"%(str(ERR)))
     
-    @functools.lru_cache(maxsize=DEFAULT_LRU_CACHE_SIZE, typed=False)
+    # @functools.lru_cache(maxsize=DEFAULT_LRU_CACHE_SIZE, typed=False)
     def _country_lookup(self,match_root,match_chunk):
         try:
             country_code_index = mainListIDCountryCodes[match_root][match_chunk]
             country_code, country_name = mainListNamesCountry[country_code_index].split(":")
-            is_private = country_code_index < 15
+            is_private = country_code_index < 16
             country_code = self.error_code_private_networks if is_private else country_code
             return country_code, country_name, is_private
         except Exception as ERR:
             return GeoIPError("Failed at _country_lookup: %s"%(str(ERR)))
 
-    @functools.lru_cache(maxsize=300, typed=False)
+    # @functools.lru_cache(maxsize=300, typed=False)
     def _city_country_name_lookup(self,country_code):
         try:
             country_name = geoipCountryNamesDict[country_code]        
             country_code_index = geoipCountryCodesList.index(country_code)
-            is_private = country_code_index < 15
+            is_private = country_code_index < 16
             country_code = self.error_code_private_networks if is_private else country_code
             return country_code, country_name, is_private
         except Exception as ERR:
             return GeoIPError("Failed at _city_country_name_lookup: %s"%(str(ERR)))
 
-    @functools.lru_cache(maxsize=DEFAULT_LRU_CACHE_SIZE, typed=False)
+    # @functools.lru_cache(maxsize=DEFAULT_LRU_CACHE_SIZE, typed=False)
     def _city_lookup(self,match_root,match_chunk):
         try:
             code = mainListIDCity[match_root][match_chunk]
@@ -706,7 +754,7 @@ class GeoIP2Fast(object):
         except Exception as ERR:
             return GeoIPError("Failed at _country_lookup: %s"%(str(ERR)))
 
-    @functools.lru_cache(maxsize=DEFAULT_LRU_CACHE_SIZE, typed=False)
+    # @functools.lru_cache(maxsize=DEFAULT_LRU_CACHE_SIZE, typed=False)
     def _asn_lookup(self,iplong):
         if self.asn == False:
             return "", ""
@@ -716,17 +764,26 @@ class GeoIP2Fast(object):
             first_ip2int = mainListFirstIPASN[matchRoot][matchChunk]
             asn_id = mainListIDASN[matchRoot][matchChunk]
             netlen = mainListNetlengthASN[matchRoot][matchChunk]
+            if not self.ipv6:
+                if iplong > ((first_ip2int + numIPsv4[netlen]) - 1):
+                    return "", ""
+            else:
+                if iplong > ((first_ip2int + numIPsv6[netlen]) - 1):
+                    return "", ""
             return mainListNamesASN[asn_id], self._int2ip(first_ip2int)+"/"+str(netlen)
         except Exception as ERR:
             return "", ""
-                            
+    def test(self):
+        
+        print(json.dumps({item.split(":")[0]:item.split(":")[1] for item in mainListNamesCountry},sort_keys=False,ensure_ascii=False,separators=(",",":")))
+        
     def _ip2int(self,ipaddr:str)->int:
         """
         Convert an IP Address into an integer number
         """    
         try:
             try:
-                return int(struct.unpack('!I', socket.inet_aton(ipaddr))[0])
+                return int(struct.unpack('>L', socket.inet_aton(ipaddr))[0])
             except:
                 return int.from_bytes(socket.inet_pton(socket.AF_INET6, ipaddr), byteorder='big')
         except Exception as ERR:
@@ -737,8 +794,8 @@ class GeoIP2Fast(object):
         Convert an integer to IP Address
         """    
         try:
-            if iplong <= MAX_IPv4:
-                return socket.inet_ntoa(struct.pack('!I', iplong))
+            if iplong < MAX_IPv4:
+                return socket.inet_ntoa(struct.pack('>L', iplong))
             else:
                 return socket.inet_ntop(socket.AF_INET6, binascii.unhexlify(hex(iplong)[2:].zfill(32)))
         except Exception as ERR:
@@ -857,156 +914,206 @@ class GeoIP2Fast(object):
                 )
         except Exception as ERR:
             print(str(ERR))
-            return
+            return ("","","","","")
                     
-    def self_test(self,with_city=False,max_ips=30):
+    def generate_random_private_address(self,num_ips=1):
+        """Generate an IP address from networks 10.0.0.0/8 or 172.16.0.0/12 or 192.168.0.0/16
+        
+           If only 1 IP is requested, returns a string, otherwise returns a list.
+           
+           If fails for some reason, raise an error.
+        """
+        return_list = []
+        try:
+            while (len(return_list) < num_ips):
+                return_list.append(self._int2ip(random.choice([random.randint(167772160,184549375),random.randint(3232235520,3232301055),random.randint(2886729728,2887778303)])))
+        except Exception as ERR:
+            raise Exception(ERR)
+        return return_list[0] if len(return_list) == 1 else return_list
+                
+    def generate_random_ipv4_address(self,num_ips=1):
+        """Generate an IPv4 address from networks 1.0.0.0 until 223.255.255.255
+        
+           If only 1 IP is requested, returns a string, otherwise returns a list.
+           
+           If fails for some reason, raise an error.
+        """
+        return_list = []
+        try:
+            while (len(return_list) < num_ips):
+                return_list.append(self._int2ip(random.randint(16777216,3758096383)))
+        except Exception as ERR:
+            raise Exception(ERR)
+        return return_list[0] if len(return_list) == 1 else return_list
+                
+    def generate_random_ipv6_address(self,num_ips=1):
+        """Generate an IPv6 address from some network that exists in GeoIP2Fast data file.
+        
+           If only 1 IP is requested, returns a string, otherwise returns a list.
+           
+           If a database without IPv6 was loaded, returns False.
+           
+           If fails for another reason, raise an error.
+        """
+        if self.ipv6 == False:
+            return False
+        return_list = []
+        try:
+            max_len_chunks = len(mainIndex)        
+            matchRoot = bisect.bisect_right(mainIndex,numIPsv4[0])
+            while (len(return_list) < num_ips):
+                sortRoot = random.randint(matchRoot+1,max_len_chunks-1)
+                sortChunk = random.randint(0,len(mainListFirstIP[sortRoot])-1)
+                first_ip2int = mainListFirstIP[sortRoot][sortChunk]
+                net_len = mainListNetlength[sortRoot][sortChunk]
+                last_ip2int = (first_ip2int + numIPsv6[net_len])-1
+                sorted_ipv6 = self._int2ip(random.randint(first_ip2int,last_ip2int))
+                return_list.append(sorted_ipv6)
+        except Exception as ERR:
+            raise Exception(ERR)
+        return return_list[0] if len(return_list) == 1 else return_list
+        
+        
+    def self_test(self,with_city=False,max_ips=30,with_ipv6=False):
         """
             Do a self-test with some random IPs
-        """                
+        """              
+        with_ipv6 = False if self.ipv6 == False else with_ipv6          
         MAX_IPS = max_ips
-        ip_list = ['266.266.266.266','192,0x0/32','10.20.30.40']
-        if self.ipv6 == True:
-            ipv6_list = []
-            for IPv6 in ['2606:54c0:19e0:::','2606:54c0:1e40:::','2606:54c0:1e40:::',
-                                   '2c0f:fed8:1000:::','2c0f:feb0:1000:::','2c0f:fe40:8001:::','2001:978:6706:::','2001:978:3500:::',
-                                   '2a13:df80:8800:::','2a13:d00:8000:::','2a12:dd47:db78:::','2001:978:6401:::','2a05:4144:49e1:::',
-                                   '2a13:a5c5:2000:::','2001:978:6410:::','2001:978:2800:::','2a07:4144:f000:::','2a13:3f86:f600:::',
-                                   '2a07:4144:ee77:::','2a13:3f85:c000:::']:
-                parts = IPv6.split(':')
-                new_block = format(random.randint(0, 2**16 - 1), 'x')
-                parts[3] = new_block
-                ipv6_list.append(':'.join(parts))
-            random.shuffle(ipv6_list)
-            ip_list.extend(ipv6_list[:10])
+        ip_ljust_space = 21
+        ip_string = "IPv4"
+        ip_list = []
+        ip_list.append("x"+self._int2ip(random.randint(16777216,3758096383)).replace(".",",")) # generates an invalid IP inserting the 'x' letter and changing dot by comma
+        ip_list.append(self._int2ip(random.randint(16777216,3758096383))+"/32") # generates an invalid IP adding '/32' to the end. Is a valid CIDR but an invalid IP
+        ip_list.append(self._int2ip(random.randint(397189376,397191423))) # generates a random IP between 23.172.161.0 and 23.172.168.255 to force a 'not found' response
+        ip_list.append(self.generate_random_private_address()) # generates a random IP of a private network
+        while len(ip_list) < max_ips:
+            if with_ipv6 == True:
+                ip_string = "IPv4 and IPv6"
+                if random.randint(0,100) < 15: # 15% of IPv6
+                    ip_list.append(self.generate_random_ipv6_address())
+                else:
+                    ip_list.append(self.generate_random_ipv4_address())
+            else:
+                ip_list.append(self.generate_random_ipv4_address())
+        if with_ipv6 == True:
+            ip_ljust_space = 39
         avgList, avgCacheList = [], []
         if with_city == True and self.city == False:
             with_city = False
-        while len(ip_list) < max_ips:
-            ip_list.append(f"{self._int2ip(random.randint(16777216,3758096383))}")
         for IP in ip_list:
             geoip = self.lookup(IP)
             avgList.append(float(geoip.elapsed_time.split(" ")[0]))
             cachedResult = self.lookup(IP)
             avgCacheList.append(float(cachedResult.elapsed_time.split(" ")[0]))
             if self.city == True:
-                endText = cachedResult.city.name if with_city == True else cachedResult.asn_name
+                endText = cachedResult.city.name if with_city == True else cachedResult.asn_name[:40]
             else:
-                endText = cachedResult.asn_name
-            print("> "+cWhite(IP.ljust(21))+" "+str(geoip.country_code).ljust(3)+cWhite(str(geoip.country_name[:30]).ljust(30))+ \
+                endText = cachedResult.asn_name[:40]
+            print("> "+cWhite(IP.ljust(ip_ljust_space))+" "+str(geoip.country_code).ljust(3)+cWhite(str(geoip.country_name[:30]).ljust(30))+ \
                 " ["+cWhite(geoip.elapsed_time)+"]  Cached > ["+cWhite(cachedResult.elapsed_time)+"] "+endText)
+
         print("")
-        print("Self-test with %s randomic IP addresses."%(format_num(len(ip_list))))
+        print("Self-test with %s randomic %s addresses."%(format_num(len(ip_list)),ip_string))
         # Discard the best and worst elapsed_time before calculate average
         print("\t- Average Lookup Time: %.9f seconds. "%(sum(sorted(avgList)[1:-1])/(len(ip_list)-2)))
         print("\t- Average Cached Lookups: %.9f seconds. "%(sum(sorted(avgCacheList)[1:-1])/(len(ip_list)-2)))
         print("")
 
-    def random_test(self,max_ips=1000000):
+    def random_test(self,max_ips=1000000,with_ipv6=False):
         """
             Do a self-test with 1.000.000 of randomic IPs
-        """        
-        MAX_IPS = max_ips
-        random_iplist = []
-        startTime = time.perf_counter()
-        for I in range(MAX_IPS):
-            random_iplist.append(f"{self._int2ip(random.randint(16777216,3758096383))}")
-        print(f"List of {format_num(MAX_IPS)} of randomic IPs created in {'%.2f seconds'%(time.perf_counter()-startTime)}")
-        print("")
-        if max_ips > 100:
-            for I in range(5,0,-1):
-                print(f"\rStart in {I} second(s)...",end="")
-                time.sleep(1)
-        print("\r")
-        avgList, avgCacheList = [], []
-        startTime = time.perf_counter()
-        for IP in random_iplist:
-            geoip = self.lookup(IP)
-            avgList.append(float(geoip.elapsed_time.split(" ")[0]))
-            cachedResult = self.lookup(IP)
-            avgCacheList.append(float(cachedResult.elapsed_time.split(" ")[0]))    
-            print("> "+cWhite(IP.ljust(15))+" "+str(geoip.country_code).ljust(3)+cWhite(str(geoip.country_name).ljust(33))+ \
-                " ["+cWhite(geoip.elapsed_time)+"]  Cached > ["+cWhite(cachedResult.elapsed_time)+"] "+cachedResult.asn_name[:42])
-        print("")
-        print("Random test with %s randomic IP addresses."%(format_num(MAX_IPS)))
-        # Discard the best and worst elapsed_time before calculate average
-        print("\t- Average Lookup Time: %.9f seconds. "%(sum(sorted(avgList)[1:-1])/(MAX_IPS-2)))
-        print("\t- Average Cached Lookups: %.9f seconds. "%(sum(sorted(avgCacheList)[1:-1])/(MAX_IPS-2)))
-        print("")
-               
-    def show_missing_ips(self):
+        """
+        self.self_test(max_ips=max_ips,with_ipv6=with_ipv6)
+    
+    def __get_missing_subnets(self,initial_ipaddr,final_ipaddr)->list:
+        try:
+            return list(ipaddress.summarize_address_range(ipaddress.ip_address(initial_ipaddr), ipaddress.ip_address(final_ipaddr)))
+        except Exception as ERR:
+            raise Exception(ERR)
+
+    def __format_large_number(self, number, decimal_places=2):
+        suffixes = ["", "thousand", "million", "billion", "trillion", "quadrillion", "quintillion", "sextillion", "septillion", "octillion", "nonillion", "decillion", "undecillion", "duodecillion", "tredecillion", "quattuordecillion", "quindecillion"]
+        for i in range(len(suffixes)):
+            if abs(number) < 1000.0:
+                return f"{round(number, decimal_places)} {suffixes[i].capitalize()}"
+            number /= 1000.0
+        return f"{round(number, decimal_places)} {suffixes[-1].capitalize()}"  # For very large numbers
+            
+    def show_missing_ips(self,verbose=False,with_ipv6=False):
         """
             Scan database for network ranges without geographic information. 
-        """        
+        """
         total_missing_ips = 0
-        total_missing_networks = 0
+        total_missing_ips_v6 = 0
         classDict = {}
+        missingFirstRanges = []
+        with_ipv6 = False if self.ipv6 == False else with_ipv6
+        print("\nSearching for missing IPv4 addresses...\n")
         try:
+            joinedFirstIPList = join_list(mainListFirstIP)
+            joinedNetLengthList = join_list(mainListNetlength)
             startTime = time.perf_counter()
-            for N in range(len(mainListFirstIP)-1):
-                for I in range(len(mainListFirstIP[N])-1):
-                    first_iplong = mainListFirstIP[N][I]
-                    if first_iplong <= numIPsv4[0]:
-                        first_ipstring = self._int2ip(mainListFirstIP[N][I])
-                        last_iplong = mainListFirstIP[N][I] + numIPsv4[mainListNetlength[N][I]] - 1
-                        if first_iplong == 0:
-                            old_last_iplong = last_iplong
-                            continue
-                        if first_iplong - old_last_iplong > 1:
-                            miss_first_iplong = old_last_iplong + 1
-                            miss_last_iplong = first_iplong - 1
-                            missing_ips = miss_last_iplong - miss_first_iplong + 1
-                            if missing_ips > 0:                            
-                                if math.log(missing_ips, 2).is_integer() == False:
-                                    cidr = cGrey("<unknown>".center(18))
-                                else: # if number of missing IPs is power of 2
-                                    cidr = cWhite((first_ipstring+"/"+str(numIPsv4.index(missing_ips))).ljust(18))
-                                if classDict.get(first_ipstring.split(".")[0],"X") == "X":
-                                    classDict[first_ipstring.split(".")[0]] = 0
-                                classDict[first_ipstring.split(".")[0]] += missing_ips
-                                total_missing_networks += 1
-                                for IP in range(miss_first_iplong,miss_last_iplong+1):
-                                    test = self.lookup(self._int2ip(miss_first_iplong)).to_dict()
-                                    if test['country_code'] != "--":
-                                        classDict[first_ipstring.split(".")[0]] -= 1
-                                        missing_ips -= 1
-                                if missing_ips > 0:
-                                    print(f"From {cWhite(self._int2ip(miss_first_iplong).ljust(15))} to {cWhite(self._int2ip(miss_last_iplong).ljust(15))} > Network {cidr} > Missing IPs: {cWhite(missing_ips)}")
-                                    total_missing_ips += missing_ips
-                        old_last_iplong = last_iplong
-            total_missing_networks -= 13 # 14 special networks first IPs - 1 reserved for broadcast that is included in 240.0.0.0/4
-            total_missing_ips += total_missing_networks # a difference for the last ip excluded to calc math.power of 2
-            if '-v' in sys.argv:
+            for N in range(len(joinedFirstIPList)):
+                first_iplong = joinedFirstIPList[N]
+                if (first_iplong > numIPsv4[0]) and (with_ipv6 == False):
+                    break
+                if (first_iplong >= numIPsv4[0]) and (old_last_iplong == numIPsv4[0]) and (with_ipv6 == True):
+                    first_ipv6 = first_iplong
+                    old_last_iplong = first_iplong
+                    print("\nSearching for missing IPv6 addresses...\n")
+                    continue
+                if first_iplong < numIPsv4[0]:
+                    last_iplong = first_iplong + numIPsv4[joinedNetLengthList[N]] 
+                elif with_ipv6 == True:
+                    last_iplong = first_iplong + numIPsv6[joinedNetLengthList[N]] 
+                if first_iplong == 0:
+                    old_last_iplong = last_iplong
+                    continue
+                missing_ips = first_iplong - old_last_iplong
+                if missing_ips > 0:
+                    # print(old_last_iplong,first_iplong)
+                    missingRanges = self.__get_missing_subnets(self._int2ip(old_last_iplong),self._int2ip(first_iplong-1))
+                    for cidr in missingRanges:
+                        if first_iplong <= MAX_IPv4:
+                            if verbose == True:
+                                if classDict.get(str(cidr).split(".")[0],"X") == "X":
+                                    classDict[str(cidr).split(".")[0]] = 0
+                                classDict[str(cidr).split(".")[0]] += numIPsv4[cidr.prefixlen]
+                            print(f"> From {cWhite(str(cidr.network_address).ljust(16))} to {cWhite(str(cidr.broadcast_address).ljust(16))} > Network: {cWhite(str(cidr).ljust(19))} > Missing IPs: {cWhite(numIPsv4[cidr.prefixlen])}")
+                            total_missing_ips += numIPsv4[cidr.prefixlen]
+                        else:
+                            print(f"> Network: {cWhite(str(cidr).ljust(30))} > Missing IPs: {cWhite(self.__format_large_number(numIPsv6[cidr.prefixlen]))}")
+                            total_missing_ips_v6 += numIPsv6[cidr.prefixlen]
+                old_last_iplong = last_iplong
+            if with_ipv6 == True:   # the last IPv6 range
+                first_iplong = old_last_iplong+1
+                total_missing_ips_v6 += first_ipv6 - 1 # sum from 0 to the first IPv6 found in database
+                # go from the last ipv6 range in database to the last ipv6 possible (ffff::/128)
+                missingRanges = self.__get_missing_subnets(self._int2ip(old_last_iplong),self._int2ip(numIPsv6[0]-1))
+                for cidr in missingRanges:
+                    print(f"> Network: {cWhite(str(cidr).ljust(30))} > Missing IPs: {cWhite(self.__format_large_number(numIPsv6[cidr.prefixlen]))}")
+                    total_missing_ips_v6 += numIPsv6[cidr.prefixlen]
+            if verbose == True:
                 print("")
-                classDict = dict(sorted(classDict.items(),key=lambda x:int(x[1]), reverse=True))
-                classDictOne = {k:v for k,v in classDict.items() if v == 1}
-                classDictTwo = {k:v for k,v in classDict.items() if v == 2}
-                classDict = {k:v for k,v in classDict.items() if v > 2}
-                print("  > Missing IPs per network class:\n")
-                for k,v in classDict.items():
-                    print(f"    - Class {k}.0.0.0/8".ljust(25,'.')+": "+f"{cWhite(format_num(v))}")
-                if len(classDictTwo.keys()) > 0:
-                    logString = "    - Class "
-                    for key in classDictTwo.keys():
-                        logString += key+".0.0.0/8, "
-                        if (list(classDictTwo.keys()).index(key) + 1) % 5 == 0:
-                            logString += "\n      "
-                    logString = logString[:-2]+"..: "+cWhite("2 (each one)")
-                    print(logString)                    
-                if len(classDictOne.keys()) > 0:
-                    logString = "    - Class "
-                    for key in classDictOne.keys():
-                        logString += key+".0.0.0/8, "
-                        if (list(classDictOne.keys()).index(key) + 1) % 5 == 0:
-                            logString += "\n      "
-                    logString = logString[:-2]+"..: "+cWhite("1 (each one)")
-                    print(logString)
+                print("  > Missing IPv4 by network class:\n")
+                classDict = dict(sorted(classDict.items(),key=lambda x:int(x[0]), reverse=False))
+                classDictRev = dict(sorted(classDict.items(),key=lambda x:int(x[1]), reverse=True))
+                index = 0
+                for k,v in classDictRev.items():
+                    print(f"    - Class {k}.0.0.0/8".ljust(25,'.')+": "+f"{cWhite(format_num(v).ljust(20))} Class {str(list(classDict.keys())[index]+'.0.0.0/8').ljust(13,'.')}: {cWhite(format_num(list(classDict.values())[index]))}")
+                    index += 1
             print("")
-            percentage = (total_missing_ips * 100) / numIPsv4[0]
-            print(f">>> Valid IP addresses without geo information: {cYellow(format_num(total_missing_ips))} (%.2f%% of all IPv4) [%.5f sec]"%(percentage,time.perf_counter()-startTime))
+            percentage = (total_missing_ips * 100) / (numIPsv4[0]) # don´t count the network 0.0.0.0/8
+            print(f">>> IPv4 addresses without geo information: {cYellow(format_num(total_missing_ips))} (%.2f%% of all IPv4) [%.5f sec]"%(percentage,time.perf_counter()-startTime))   
+            if with_ipv6 == True:
+                percentage_v6 = (total_missing_ips_v6 * 100) / (numIPsv6[0])
+                print(f">>> IPv6 addresses without geo information: {cYellow(self.__format_large_number(total_missing_ips_v6))} (%.2f%% of all IPv6) [%.5f sec]"%(percentage_v6,time.perf_counter()-startTime))   
+
         except Exception as ERR:
             raise GeoIPError("Failed to show missing IPs information. %s"%(str(ERR)))
         
-    def calculate_coverage(self,print_result=False,verbose=False)->float:
+    def calculate_coverage(self,print_result=False,verbose=False,with_ipv6=False)->float:
         """
             Calculate how many IP addresses are in all networks covered by geoip2fast.dat and compare with all 4.294.967.296 
             possible IPv4 addresses on the internet. 
@@ -1022,48 +1129,52 @@ class GeoIP2Fast(object):
                 GeoIP2Fast will return a response for XX.XX% of all IPv4 on the internet.
         
         Returns:
-            float: Returns a percentage compared with all possible IPs.
+            float: Returns a percentage compared with all possible IPsv4
         """
+        global percentagev6
+        with_ipv6 = False if self.ipv6 == False else with_ipv6
         try:
+            joinedFirstIPList = join_list(mainListFirstIP)
+            joinedNetLengthList = join_list(mainListNetlength)
             startTime = time.perf_counter()
             ipCounterv4, ipCounterv6 = 0, 0
+            totalNetworksv4, totalNetworksv6  = 0, 0
             index = 0
-            totalNetworksv4, totalNetworksv6  = 0, 0                
-            for indexList in mainListNetlength:
-                indexListCounter = 0
-                for item in indexList:
+            num_ipsv4, num_ipsv6 = 0, 0
+            for item in joinedNetLengthList:
+                if (verbose and print_result == True):
                     startTimeCIDR = time.perf_counter()
-                    num_ipsv4 = 0
-                    num_ipsv6 = 0                 
-                    if mainListFirstIP[index][indexListCounter] <= numIPsv4[0]:
-                        num_ipsv4 = numIPsv4[item]
-                        num_ips = num_ipsv4
-                        totalNetworksv4 += 1
-                    else:
-                        num_ipsv6 = numIPsv6[item]
-                        num_ips = num_ipsv6
-                        totalNetworksv6 += 1
+                    IP = str(self._int2ip(joinedFirstIPList[index]))
+                    CIDR = IP + "/" + str(item)
+                    result = self.lookup(IP)
+                if joinedFirstIPList[index] < MAX_IPv4-1:
+                    num_ipsv4 = numIPsv4[item]
                     ipCounterv4 += num_ipsv4
+                    totalNetworksv4 += 1
+                    num_ips_string = format_num(num_ipsv4).ljust(10)
+                    if (verbose and print_result == True):
+                        print(f"- Network: {cWhite(CIDR.ljust(19))} IPs: {cWhite(num_ips_string)} {result.country_code} {cWhite(result.country_name.ljust(35))} {'%.9f sec'%(time.perf_counter()-startTimeCIDR)}")
+                else:
+                    num_ipsv6 = numIPsv6[item]
                     ipCounterv6 += num_ipsv6
-                    if verbose and print_result == True:
-                        IP = str(self._int2ip(mainListFirstIP[index][indexListCounter]))
-                        CIDR = IP + "/" + str(item)
-                        result = self.lookup(IP)
-                        print(f"- Network: {cWhite(CIDR.ljust(19))} IPs: {cWhite(str(num_ips).ljust(10))} {result.country_code} {cWhite(result.country_name.ljust(35))} {'%.9f sec'%(time.perf_counter()-startTimeCIDR)}")
-                    indexListCounter += 1
+                    totalNetworksv6 += 1
+                    num_ips_string = self.__format_large_number(num_ipsv6).ljust(20)
+                    if (with_ipv6 == True and verbose and print_result):
+                        print(f"- Network: {cWhite(CIDR.ljust(19))} IPs: {cWhite(num_ips_string)} {result.country_code} {cWhite(result.country_name.ljust(35))} {'%.9f sec'%(time.perf_counter()-startTimeCIDR)}")
                 index += 1                        
-            ipCounterv4 -= 1 # removing the last IP (255.255.255.255) that is already included in 240.0.0.0/4
             percentagev4 = (ipCounterv4 * 100) / numIPsv4[0]
             percentagev6 = (ipCounterv6 * 100) / numIPsv6[0]                
             endTime = time.perf_counter()
             if print_result == True:
                 if verbose: print("")
-                print(f"Current IPv4 coverage: %s ({format_num(ipCounterv4)} IPv4 in %s networks) [%.5f sec]"%(str('%.2f%%'%(percentagev4)).rjust(7),format_num(totalNetworksv4),(endTime-startTime)))
-                print(f"Current IPv6 coverage: %s ({format_num(ipCounterv6)} IPv6 in %s networks) [%.5f sec]"%(str('%.2f%%'%(percentagev6)).rjust(7),format_num(totalNetworksv6),(endTime-startTime)))
+                print(f"Current IPv4 coverage: %s ({format_num(ipCounterv4)} IPv4 in %s networks) [%.5f sec]"%(cYellow(str('%.2f%%'%(percentagev4)).rjust(7)),format_num(totalNetworksv4),(endTime-startTime)))
+                if with_ipv6:
+                    print(f"Current IPv6 coverage: %s ({format_num(ipCounterv6)} IPv6 in %s networks) [%.5f sec]"%(cYellow(str('%.2f%%'%(percentagev6)).rjust(7)),format_num(totalNetworksv6),(endTime-startTime)))
             return percentagev4
         except Exception as ERR:
             raise GeoIPError("Failed to calculate total IP coverage. %s"%(str(ERR)))
         
+
     def calculate_speed(self,print_result=False,max_ips=1000000)->float:
         """Calculate how many lookups per second is possible.
 
@@ -1079,10 +1190,10 @@ class GeoIP2Fast(object):
         """
         try:
             MAX_IPS = max_ips
-            self.clear_cache()   
+            self.clear_cache()
             startTime = time.perf_counter()
-            # COULD BE 3X FASTER IF YOU GENERATE A LIST WITH 1.000.000 IPs BEFORE LOOKUP.
-            # BUT LET´S KEEP LIKE THIS TO SPEND SOME MILLISECONDS TO GET CLOSER A REAL SITUATION OF USE
+            # COULD BE A LITTLE BIT FASTER IF YOU GENERATE A LIST WITH 1.000.000 IPs BEFORE LOOKUP.
+            # BUT LET´S KEEP LIKE THIS TO SPEND SOME MILLISECONDS TO GET CLOSER A REAL SITUATION OF USE            
             for NUM in range(MAX_IPS):
                 IP = self._int2ip(random.randint(16777216,3758096383)) # from 1.0.0.0 to 223.255.255.255
                 ipinfo = self.lookup(IP)
@@ -1091,10 +1202,103 @@ class GeoIP2Fast(object):
             current_lookups_per_second = MAX_IPS / total_time_spent
             if print_result == True:
                 print("Current speed: %.2f lookups per second (%s IPs with an average of %.9f seconds per lookup) [%.5f sec]"%(current_lookups_per_second,format_num(MAX_IPS),total_time_spent / MAX_IPS,time.perf_counter()-startTime))
+
+            # method 02 - Use the sum of all elapsed time returned by each lookup instead the time spent by the whole function
+            # self.clear_cache()   
+            # startTime = time.perf_counter()
+            # elapsed_time_lookup_list = []
+            # for NUM in range(MAX_IPS):
+            #     IP = self._int2ip(random.randint(16777216,3758096383)) # from 1.0.0.0 to 223.255.255.255
+            #     ipinfo = self.lookup(IP)
+            #     XXXX = ipinfo.country_code # SIMULATE THE USE OF THE RETURNED VALUE
+            #     elapsed_time_lookup_list.append(float(ipinfo.elapsed_time.split()[0]))
+            # current_lookups_per_second = len(elapsed_time_lookup_list) / sum(elapsed_time_lookup_list)
+            # print("Current speed: %.2f lookups per second (%s IPs with an average of %.9f seconds per lookup) [%.5f sec]"%(current_lookups_per_second,format_num(MAX_IPS),sum(elapsed_time_lookup_list) / len(elapsed_time_lookup_list),time.perf_counter()-startTime))
             return current_lookups_per_second
         except Exception as ERR:
             raise GeoIPError("Failed to calculate current speed. %s"%(str(ERR)))
-          
+            
+
+    def get_database_info(self):
+        """Returns detailed information about the data file currently in use
+        """
+        def get_list_size(listname):
+            try:
+                return (len(listname[0])*(len(mainIndex)-1))+len(listname[-1])
+            except:
+                return 0 
+        def get_list_ipaddress_size(listname):
+            try:
+                count_ipv4 = sum(len([num for num in sublist if num <= numIPsv4[0]]) for sublist in listname)
+                count_ipv6 = sum(len([num for num in sublist if num > numIPsv4[0]]) for sublist in listname)
+                return count_ipv4,count_ipv6
+            except:
+                return 0, 0
+        def get_file_size_uncompressed(data_file_full_path):
+            try:
+                with gzip.open(data_file_full_path,'rb') as inputFile:
+                    uncompressed_data = inputFile.read()
+                    file_size = len(uncompressed_data)
+                    del uncompressed_data
+                    del inputFile
+                    return file_size
+            except Exception as ERR:
+                print(ERR)
+                return 0
+        
+        database_content = "Country" if self.country else "Country + City"
+        database_content += " + ASN" if self.asn else ""
+        database_content += " with IPv4 and IPv6" if self.ipv6 else " with IPv4 only"
+        
+        return_data = { 'database_content':database_content,
+                        'database_fullpath':self.get_database_path(),
+                        'file_size':os.path.getsize(self.get_database_path()),
+                        'uncompressed_file_size':get_file_size_uncompressed(self.get_database_path()),
+                        'source_info':self.source_info,
+                        'dat_version':__DAT_VERSION__,
+                       }
+        if self.country:
+            ipv4,ipv6 = get_list_ipaddress_size(mainListFirstIP)
+            return_data.update({'country':{
+                            "main_index_size":len(mainIndex),
+                            "first_ip_list_size":get_list_size(mainListFirstIP),
+                            "country_code_id_list_size":get_list_size(mainListIDCountryCodes),
+                            "netlength_list_size":get_list_size(mainListNetlength),
+                            "country_names":len(mainListNamesCountry),
+                            "ipv4_networks":ipv4,
+                            "ipv6_networks":ipv6,
+                            "number_of_chunks":(len(mainIndex)),
+                            "chunk_size":(len(mainListFirstIP[0])),                            
+            }})
+        if self.city:
+            ipv4,ipv6 = get_list_ipaddress_size(mainListFirstIP)
+            return_data.update({'city':{
+                            "main_index_size":len(mainIndex),
+                            "first_ip_list_size":get_list_size(mainListFirstIP),
+                            "city_names_id_list_size":get_list_size(mainListIDCity),
+                            "netlength_list_size":get_list_size(mainListNetlength),
+                            "country_names":len(mainListNamesCountry),
+                            "city_names":len(mainListNamesCity),
+                            "ipv4_networks":ipv4,
+                            "ipv6_networks":ipv6,                            
+                            "number_of_chunks":(len(mainIndex)),
+                            "chunk_size":(len(mainListFirstIP[0])),                            
+            }})
+        if self.asn:
+            ipv4,ipv6 = get_list_ipaddress_size(mainListFirstIPASN)
+            return_data.update({'asn':{
+                            "main_index_size":len(mainIndexASN),
+                            "first_ip_list_size":get_list_size(mainListFirstIPASN),
+                            "netlength_list_size":get_list_size(mainListNetlengthASN),
+                            "asn_names":len(mainListNamesASN),
+                            "ipv4_networks":ipv4,
+                            "ipv6_networks":ipv6,                            
+                            "number_of_chunks":(len(mainIndexASN)),
+                            "chunk_size":(len(mainListFirstIPASN[0])),                            
+            }})
+        return return_data
+
+
 ##########################################################################################
           
 ##     ## ########  ########     ###    ######## ########    ########     ###    ########
@@ -1320,7 +1524,7 @@ class UpdateGeoIP2Fast(object):
         """            
         global GEOIP_UPDATE_DAT_URL
         self._print_verbose = self._print_verbose_empty if verbose == False else self._print_verbose_regular
-            
+        print(filename)
         if filename not in GEOIP_POSSIBLE_FILENAMES:
             return self.update_error(f'Invalid filename. Choose one of {str(GEOIP_POSSIBLE_FILENAMES)[1:-1].replace(", ",",")}')
 
@@ -1355,12 +1559,13 @@ class UpdateGeoIP2Fast(object):
         self._print_verbose(f"- Opening URL {url}")
         return self.__download_file_from_url(url=url,destination_path=dest_dir,destination_filename=dest_filename,max_retries=0,verbose=verbose)
 
-
 ##──── A SIMPLE AND FAST CLI ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
 def main_function():
     ncmd = len(sys.argv)
     verbose_mode = False
     resolve_hostname = False
+    with_ipv6 = False
+    geoip2fast_datafile = ""    
     if '-v' in sys.argv: 
         verbose_mode = True
         sys.argv.pop(sys.argv.index('-v'))
@@ -1369,6 +1574,20 @@ def main_function():
         resolve_hostname = True
         sys.argv.pop(sys.argv.index('-d'))
         ncmd -= 1
+    if '--with-ipv6' in sys.argv: 
+        with_ipv6 = True
+        sys.argv.pop(sys.argv.index('--with-ipv6'))
+        ncmd -= 1
+    if '-vvv' in sys.argv:
+        geoip = GeoIP2Fast(geoip2fast_data_file=geoip2fast_datafile,verbose=True)
+        geoip.test()
+        sys.exit(0)
+        # print(f"Using datafila: {os.path.realpath(geoip.get_database_path())}")
+        # sys.exit(0)
+    if ('--info' in sys.argv) or ('-i' in sys.argv):
+        geoip = GeoIP2Fast(geoip2fast_data_file=geoip2fast_datafile,verbose=verbose_mode)
+        print(json.dumps(geoip.get_database_info(),indent=3,sort_keys=False,ensure_ascii=False))
+        sys.exit(0)
 
     ##──── Downloads all data files available and saves them to the specified path or filename supplied in --dest parameter ─────────────────────
     if '--update-all' in sys.argv: 
@@ -1392,7 +1611,6 @@ def main_function():
         else:
             errors_result = [item for item in update_result if item['error'] is not None]
             sys.exit(len(errors_result))
-
     ##──── Downloads a specific data file and saves them to the specified path or filename supplied in --dest parameter ─────────────────────
     if '--update-file' in sys.argv: 
         index = sys.argv.index('--update-file')
@@ -1421,64 +1639,93 @@ def main_function():
             sys.exit(0)
         else:
             sys.exit(1)
-
+    ##────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+    for arg in sys.argv: # search in command line arguments if a geoip2fast dat.gz filename is specified
+        match = re.match('.*geoip2fast.*\.dat\.gz',arg)
+        if (match):
+            geoip2fast_datafile = match.group(0)
+            sys.argv.pop(sys.argv.index(geoip2fast_datafile))
+            break
+        else:
+            match = re.match('.*geoip2fast.*\.dat',arg)
+            if (match):
+                geoip2fast_datafile = match.group(0)
+                sys.argv.pop(sys.argv.index(geoip2fast_datafile))
+                break
     ##────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
     if '--speed-test' in sys.argv or '--speedtest' in sys.argv:
-        geoip = GeoIP2Fast(verbose=True)
+        geoip = GeoIP2Fast(geoip2fast_data_file=geoip2fast_datafile,verbose=True)
         print("\nCalculating current speed... wait a few seconds please...\n")
         geoip.calculate_speed(True)
         print("")
         sys.exit(0)
     if '--random-test' in sys.argv or '--randomtest' in sys.argv:
-        geoip = GeoIP2Fast(verbose=True)
+        geoip = GeoIP2Fast(geoip2fast_data_file=geoip2fast_datafile,verbose=True)
+        num_ips = next((re.match('^[0-9]*$',item).group(0) for item in sys.argv if re.match('^[0-9]*$',item)),1000000)
         print("")
-        geoip.random_test()
+        geoip.random_test(max_ips=int(num_ips),with_ipv6=with_ipv6)
         print("")
         sys.exit(0)
     if '--missing-ips' in sys.argv or '--missingips' in sys.argv:
-        geoip = GeoIP2Fast(verbose=True)
-        print("\nSearching for missing IPs...\n")
-        geoip.show_missing_ips()
+        geoip = GeoIP2Fast(geoip2fast_data_file=geoip2fast_datafile,verbose=True)
+        geoip.show_missing_ips(verbose=verbose_mode,with_ipv6=with_ipv6)
         print("")
         sys.exit(0)
     if '--self-test-city' in sys.argv or '--selftestcity' in sys.argv:
-        geoip = GeoIP2Fast(verbose=True)
+        geoip = GeoIP2Fast(geoip2fast_data_file=geoip2fast_datafile,verbose=True)
+        num_ips = next((re.match('^[0-9]*$',item).group(0) for item in sys.argv if re.match('^[0-9]*$',item)),30)
         print("\nStarting a self-test...\n")
-        geoip.self_test(with_city=True)
+        geoip.self_test(with_city=True,max_ips=int(num_ips),with_ipv6=with_ipv6)
         print("")
         sys.exit(0)
     if '--self-test' in sys.argv or '--selftest' in sys.argv:
-        geoip = GeoIP2Fast(verbose=True)
+        geoip = GeoIP2Fast(geoip2fast_data_file=geoip2fast_datafile,verbose=True)
+        num_ips = next((re.match('^[0-9]*$',item).group(0) for item in sys.argv if re.match('^[0-9]*$',item)),30)
         print("\nStarting a self-test...\n")
-        geoip.self_test()
+        geoip.self_test(max_ips=int(num_ips),with_ipv6=with_ipv6)
         print("")
         sys.exit(0)
     if '--coverage' in sys.argv: 
-        geoip = GeoIP2Fast(verbose=True)
+        geoip = GeoIP2Fast(geoip2fast_data_file=geoip2fast_datafile,verbose=True)
         print("\nUse the parameter '-v' to see all networks included in your %s file.\n"%(geoip.get_database_path()))
-        geoip.calculate_coverage(True,verbose=verbose_mode)
+        if verbose_mode == False:
+            with_ipv6 = True
+        geoip.calculate_coverage(True,verbose=verbose_mode,with_ipv6=with_ipv6)
         print("")
         sys.exit(0)
-    if len(sys.argv) > 1 and sys.argv[1] is not None and '-h' not in sys.argv:
+    ##──── Use -vvv on command line to see which dat.gz file is currently being used ─────────────────────────────────────────────────
+    # self._database_path = self.data_file
+        
+    if (len(sys.argv) > 1) and (sys.argv[1] is not None) and ('-h' not in sys.argv) and ('--help' not in sys.argv):
         a_list = sys.argv[1].replace(" ","").split(",")
         if len(a_list) > 0:
-            geoip = GeoIP2Fast(verbose=verbose_mode)
+            geoip = GeoIP2Fast(geoip2fast_data_file=geoip2fast_datafile,verbose=verbose_mode)
             for IP in a_list:
                 result = geoip.lookup(str(IP))
                 if resolve_hostname == True: result.get_hostname()
                 result.pp_json(print_result=True)
+        sys.exit(0)
     else:
-        print(f"GeoIP2Fast v{__version__} Usage: {os.path.basename(__file__)} [-h] [-v] [-d] <ip_address_1>,<ip_address_2>,<ip_address_N>,...")
-        if '-h' in sys.argv:
+        print(f"GeoIP2Fast v{__version__} Usage: {os.path.basename(__file__)} [-h] [-v] [-d] [-i] [data_filename_to_be_used] <ip_address_1>,<ip_address_2>,<ip_address_N>,...")
+        if '-h' in sys.argv or '--help' in sys.argv:
             print(f"""
 Tests parameters:
-  --self-test         Starts a self-test with some randomic IP addresses.
-  --self-test-city    Starts a self-test with some randomic IP addresses and with city names support.
   --speed-test        Do a speed test with 1 million on randomic IP addresses.                                               
-  --random-test       Start a test with 1.000.000 of randomic IPs and calculate a lookup average time.
+  
+  --self-test [num_ips] [--with-ipv6]
+                      Starts a self-test with some randomic IP addresses.
+                      
+  --self-test-city [num_ips] [--with-ipv6]
+                      Starts a self-test with some randomic IP addresses and with city names support.
+                      
+  --random-test [num_ips] [--with-ipv6]
+                      Start a test with 1.000.000 of randomic IPs and calculate a lookup average time.
 
-  --coverage [-v]     Shows a statistic of how many IPs are covered by current dat file. 
-  --missing-ips [-v]  Print all IP networks that doesn't have geo information (only for IPv4).
+  --coverage [-v] [--with-ipv6]
+                      Shows a statistic of how many IPs are covered by current dat file. 
+                      
+  --missing-ips [-v] [--with-ipv6]
+                      Print all IP networks that doesn't have geo information (only for IPv4).
              
 Automatic update:
   --update-all [-v]    Download all dat.gz files available in the repository below:
@@ -1486,10 +1733,10 @@ Automatic update:
 
   --update-file <geoip2fast_dat_filename> [-v]
                        Download a specific filename from the repository. Only one file is allowed.
-                       Allowed values are: geoip2fast.dat.gz OR geoip2fast-ipv6.dat.gz OR 
-                                           geoip2fast-asn.dat.gz OR geoip2fast-asn-ipv6.dat.gz OR
-                                           geoip2fast-city.dat.gz OR geoip2fast-city-ipv6.dat.gz OR 
-                                           geoip2fast-city-asn.dat.gz OR geoip2fast-city-asn-ipv6.dat.gz
+                       Allowed values: geoip2fast.dat.gz OR geoip2fast-ipv6.dat.gz OR 
+                                       geoip2fast-asn.dat.gz OR geoip2fast-asn-ipv6.dat.gz OR
+                                       geoip2fast-city.dat.gz OR geoip2fast-city-ipv6.dat.gz OR 
+                                       geoip2fast-city-asn.dat.gz OR geoip2fast-city-asn-ipv6.dat.gz
 
   --dest <a directory path or a filename> [-v]
                        Specify the destination directory for the downloaded files. When combined with 
@@ -1504,8 +1751,9 @@ Automatic update:
                        to view possible errors in your console.
                
 More options:
-  -d                  Resolve the DNS of given IP address.
-  -h                  Show this help text.
+  -d                  Resolves the DNS of the given IP address.
+  -i / --info         Returns detailed information about the data file currently in use.
+  -h / --help         Show this help text.
   -v                  Verbose mode.
   -vvv                Shows the location of current dat file in use.
   
@@ -1513,3 +1761,4 @@ More options:
             
 if __name__ == "__main__":
     sys.exit(main_function())
+    

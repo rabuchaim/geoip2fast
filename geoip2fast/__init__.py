@@ -14,7 +14,7 @@
 """
 __author__ = 'Ricardo Abuchaim'
 __license__ = 'MIT'
-__version__ = "1.2.1"
-__releasedate__ = "01/Dec/2023"
+__version__ = "1.2.2"
+__releasedate__ = "20/Jun/2024"
 
 from geoip2fast.geoip2fast import GeoIP2Fast,GeoIPDetail,GeoIPDetailCity,UpdateGeoIP2Fast

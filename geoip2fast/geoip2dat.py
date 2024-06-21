@@ -2,7 +2,7 @@
 # encoding: utf-8
 # -*- coding: utf-8 -*-
 """
-GeoIP2Dat v1.2.1 - DAT file update for GeoIP2Fast
+GeoIP2Dat v1.2.2 - DAT file update for GeoIP2Fast
 """
 """
 Author: Ricardo Abuchaim - ricardoabuchaim@gmail.com
@@ -11,7 +11,7 @@ Author: Ricardo Abuchaim - ricardoabuchaim@gmail.com
 License: MIT
 """
 __appid__   = "GeoIP2Dat"
-__version__ = "1.2.1"
+__version__ = "1.2.2"
 
 import sys, os, gzip, pickle, io, socket, struct, json, hashlib, csv, shutil
 import ctypes, subprocess
@@ -24,9 +24,9 @@ from timeit import default_timer
 from pprint import pprint as pp
 
 ##──── URL TO DOWNLOAD CSV FILES FROM MAXMIND (FOR FUTURE VERSIONS) ───────────────────────────────────────────────────────────────────────────────────
-MM_URL_COUNTRY  = "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-Country-CSV&license_key=YOUR_LICENSE_KEY&suffix=zip"
-MM_URL_CITY     = "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City-CSV&license_key=YOUR_LICENSE_KEY&suffix=zip"
-MM_URL_ASN      = "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-ASN-CSV&license_key=YOUR_LICENSE_KEY&suffix=zip"
+# MM_URL_COUNTRY  = "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-Country-CSV&license_key=YOUR_LICENSE_KEY&suffix=zip"
+# MM_URL_CITY     = "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City-CSV&license_key=YOUR_LICENSE_KEY&suffix=zip"
+# MM_URL_ASN      = "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-ASN-CSV&license_key=YOUR_LICENSE_KEY&suffix=zip"
 ##────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 ##──── MAXMIND STANDARD FILENAMES ────────────────────────────────────────────────────────────────────────────────────────────────
 MM_COUNTRY_LOCATIONS_FILENAME   = "GeoLite2-Country-Locations-XX.csv"
@@ -43,7 +43,7 @@ GEOIP2FAST_DAT_FILENAME_GZ      = "geoip2fast.dat.gz"
 
 DEFAULT_SOURCE_INFO             = "MAXMIND:GeoLite2-"
 
-LIST_SLICE_SIZE                 = 5000
+LIST_SLICE_SIZE                 = 100
 ##────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 AVAILABLE_LANGUAGES     = ['de','en','es','fr','ja','pt-BR','ru','zh-CN']
 
@@ -61,6 +61,10 @@ _DEBUG = bool(os.environ.get("GEOIP2DAT_DEBUG",False))
 
 os.environ["PYTHONWARNINGS"]    = "ignore"
 os.environ["PYTHONIOENCODING"]  = "UTF-8"        
+
+
+# https://www.iana.org/assignments/iana-ipv4-special-registry/iana-ipv4-special-registry-1.csv
+# https://www.iana.org/assignments/iana-ipv6-special-registry/iana-ipv6-special-registry-1.csv
 
 reservedNetworks = {
     "0.0.0.0/8":         {"01":"Reserved for self identification"},
@@ -81,10 +85,22 @@ reservedNetworks = {
     }
 
 ##──── IP MANIPULATION FUNCTIONS ─────────────────────────────────────────────────────────────────────────────────────────────────
-ipv4_to_int = lambda ipv4_address: struct.unpack('!I', socket.inet_aton(ipv4_address))[0]
-int_to_ipv4 = lambda iplong: socket.inet_ntoa(struct.pack('!I', iplong))
-ipv6_to_int = lambda ipv6_address: int.from_bytes(socket.inet_pton(socket.AF_INET6, ipv6_address), byteorder='big')
-int_to_ipv6 = lambda iplong: socket.inet_ntop(socket.AF_INET6, unhexlify(hex(iplong)[2:].zfill(32)))
+# ipv4_to_int = lambda ipv4_address: struct.unpack('!I', socket.inet_aton(ipv4_address))[0]
+def ipv4_to_int(ipv4_address):
+    return struct.unpack('>L', socket.inet_aton(ipv4_address))[0]
+
+# int_to_ipv4 = lambda iplong: socket.inet_ntoa(struct.pack('!I', iplong))
+def int_to_ipv4(iplong):
+    return socket.inet_ntoa(struct.pack('>L', iplong))
+
+# ipv6_to_int = lambda ipv6_address: int.from_bytes(socket.inet_pton(socket.AF_INET6, ipv6_address), byteorder='big')
+def ipv6_to_int(ipv6_address):
+    return int.from_bytes(socket.inet_pton(socket.AF_INET6, ipv6_address), byteorder='big')
+
+# int_to_ipv6 = lambda iplong: socket.inet_ntop(socket.AF_INET6, unhexlify(hex(iplong)[2:].zfill(32)))
+def int_to_ipv6(iplong):
+    return socket.inet_ntop(socket.AF_INET6, unhexlify(hex(iplong)[2:].zfill(32)))
+
 ##──── Number os possible IPs in a network range. (/0, /1 .. /8 .. /24 .. /30, /31, /32) ─────────────────────────────────────────
 ##──── Call the index of a list. Ex. numIPs[24] (is the number os IPs of a network range class C /24) ────────────────────────────
 numIPsv4 = sorted([2**num for num in range(0,33)],reverse=True) # from 0 to 32
@@ -303,11 +319,19 @@ def timer(elapsed_timer_name):
             return "[error sec]"
 ##────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-##──── SPLIT A LIST OR A DICT ────────────────────────────────────────────────────────────────────────────────────────────────────
+##──── Join the splitted list ────────────────────────────────────────────────────────────────────────────────────────────────────
+def join_list(list_of_lists):
+    joined_list = []
+    for sublist in list_of_lists:
+        joined_list.extend(sublist)
+    return joined_list
+##───────────────────────────'─────────────────────────────────────────────────────────────────────────────────────────────────────
 def split_list(lista, n):
+    sliced_lists = []
     for i in range(0, len(lista), n):
-        yield lista[i:i + n]
-
+        sliced_lists.append(lista[i:i + n])
+    return sliced_lists
+##───────────────────────────'─────────────────────────────────────────────────────────────────────────────────────────────────────
 def split_dict(iterable, start, stop):
     from itertools import islice
     return islice(iterable, start, stop)
@@ -623,7 +647,7 @@ def run(country_dir,asn_dir,city_dir,output_dir,language="en",source_info="",deb
                                     counter += 1
                                     try:
                                         cidr, geoname_id, registered_country_id, represented_country_id, \
-                                            is_anonymous_proxy, is_satellite_provider,is_anycast = map(str.strip, fields)                                    
+                                            is_anonymous_proxy, is_satellite_provider,*_any_other_field  = map(str.strip, fields)
                                         if is_IPV6:
                                             CIDRInfo = CIDRv6Detail(cidr)
                                         else:
@@ -872,7 +896,7 @@ def run(country_dir,asn_dir,city_dir,output_dir,language="en",source_info="",deb
                                     counter += 1
                                     try:
                                         cidr,geoname_id,registered_country_geoname_id,represented_country_geoname_id,is_anonymous_proxy,\
-                                            is_satellite_provider,postal_code,latitude,longitude,accuracy_radius,is_anycast = map(str.strip, fields)
+                                            is_satellite_provider,postal_code,latitude,longitude,accuracy_radius,*_any_other_field = map(str.strip, fields)
                                         if is_IPV6:
                                             CIDRInfo = CIDRv6Detail(cidr)
                                         else:
