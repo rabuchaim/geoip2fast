@@ -2,7 +2,7 @@
 # encoding: utf-8
 # -*- coding: utf-8 -*-
 """
-GeoIP2Dat v1.1.10 - DAT file update for GeoIP2Fast
+GeoIP2Dat v1.1.11 - DAT file update for GeoIP2Fast
 """
 """
 Author: Ricardo Abuchaim - ricardoabuchaim@gmail.com
@@ -11,7 +11,7 @@ Author: Ricardo Abuchaim - ricardoabuchaim@gmail.com
 License: MIT
 """
 __appid__   = "GeoIP2Dat"
-__version__ = "1.1.10"
+__version__ = "1.1.11"
 
 import sys, os, gzip, pickle, io, socket, struct, json, hashlib, time
 from datetime import datetime as dt
@@ -558,9 +558,9 @@ def run(country_dir,asn_dir,output_dir,language="en",with_ipv6=False,source_info
                                     break
                                 else:
                                     try:
-                                        LINE = line.strip().split(",")
+                                        LINE = line.split(",")
                                         cidr, geoname_id, registered_country_id, represented_country_id, \
-                                            is_anonymous_proxy, is_satellite_provider,is_anycast = LINE
+                                            is_anonymous_proxy, is_satellite_provider, *_any_other_field = LINE
                                         if is_IPV6:
                                             CIDRInfo = CIDRv6Detail(cidr)
                                         else:

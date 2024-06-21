@@ -2,7 +2,7 @@
 # encoding: utf-8
 # -*- coding: utf-8 -*-
 """
-GeoIP2Fast - Version v1.1.10
+GeoIP2Fast - Version v1.1.11
 
 Author: Ricardo Abuchaim - ricardoabuchaim@gmail.com
         https://github.com/rabuchaim/geoip2fast/
@@ -18,6 +18,15 @@ License: MIT
 :....8 :.....::.....:..:..:::::.......:..:::::.....::.....:::..:
 :::::8 :::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 :::::..:::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+What's new in v1.1.11 - 20/Jun/2024
+- Moved line "sys.tracebacklimit = 0" to the main_function() because 
+  was causing some problems in Django. This line is unnecessary to 
+  the GeoIP2Fast class and was there only for the command line use.
+  https://github.com/rabuchaim/geoip2fast/issues/10
+- Fix in geoip2dat.py so that future field insertions made 
+  by MaxMind in the CSV files no longer affect the creation of new 
+  dat.gz files.
 
 What's new in v1.1.10 - 01/Dec/2023
 - Automatic download of dat.gz files. Try the commands below:
@@ -41,7 +50,7 @@ What's new in v1.1.9 - 22/Nov/2023
 
 """
 __appid__   = "GeoIP2Fast"
-__version__ = "1.1.10"
+__version__ = "1.1.11"
 
 import sys, os, math, ctypes, struct, socket, time, subprocess, random, binascii, functools
 import urllib.request, urllib.error, urllib.parse, gzip, pickle, json, bisect, time
@@ -74,8 +83,7 @@ GEOIP_POSSIBLE_FILENAMES            = ['geoip2fast.dat.gz',
 ##──── Ex: export GEOIP2FAST_DEBUG=1 ─────────────────────────────────────────────────────────────────────────────────────────────
 _DEBUG = bool(os.environ.get("GEOIP2FAST_DEBUG",False))
 os.environ["PYTHONWARNINGS"]    = "ignore"
-os.environ["PYTHONIOENCODING"]  = "utf-8"        
-sys.tracebacklimit              = 0
+os.environ["PYTHONIOENCODING"]  = "utf-8"
 
 reservedNetworks = {
     "0.0.0.0/8":         {"01":"Reserved for self identification"},
@@ -1244,6 +1252,7 @@ class UpdateGeoIP2Fast(object):
 
 ##──── A SIMPLE AND FAST CLI ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
 def main_function():
+    sys.tracebacklimit = 0
     ncmd = len(sys.argv)
     verbose_mode = False
     resolve_hostname = False
