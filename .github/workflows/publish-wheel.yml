@@ -1,0 +1,69 @@
+name: Publish Python Package
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  bump-version-build-publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade setuptools wheel twine
+
+      - name: Bump minor version
+        id: bump_version
+        run: |
+          # Extract current version from setup.py
+          current_version=$(python -c "import re; print(re.search(r'version=\\'([0-9]+\\.[0-9]+\\.[0-9]+)\\'', open('setup.py').read()).group(1))")
+
+          # Increment the minor version
+          IFS='.' read -r major minor patch <<< "$current_version"
+          minor=$((minor + 1))
+          new_version="$major.$minor.0"
+
+          # Update version in setup.py
+          sed -i "s/version='$current_version'/version='$new_version'/" setup.py
+
+          echo "new_version=$new_version" >> $GITHUB_ENV
+
+      - name: Build wheel
+        run: |
+          python setup.py bdist_wheel
+
+      - name: Create Git tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -am "Bump version to ${{ env.new_version }}"
+          git tag -a "v${{ env.new_version }}" -m "Release v${{ env.new_version }}"
+          git push origin main --tags
+
+      - name: Upload Release to GitHub
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ github.event.repository.releases_url }}/latest
+          asset_path: dist/*.whl
+          asset_name: geoip2fast-${{ env.new_version }}-py3-none-any.whl
+          asset_content_type: application/octet-stream
+
+      - name: Publish Release on GitHub
+        uses: ncipollo/release-action@v1
+        with:
+          tag: "v${{ env.new_version }}"
+          release_name: "Release v${{ env.new_version }}"
+          draft: false
+          prerelease: false
