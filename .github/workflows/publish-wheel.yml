@@ -1,9 +1,6 @@
 name: Publish Python Package
 
 on:
-  push:
-    branches:
-      - fix/add-publish-package-workflow
   workflow_dispatch:
 
 permissions:
