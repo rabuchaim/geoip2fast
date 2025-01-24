@@ -1634,20 +1634,20 @@ def main_function():
         U = UpdateGeoIP2Fast()
         update_result = U.update_file(filename=download_filename_param,destination=destination_param,verbose=verbose_mode)
         if verbose_mode:print("")
-        
+
         if update_result.get('error',0) is None:
             sys.exit(0)
         else:
             sys.exit(1)
     ##────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
     for arg in sys.argv: # search in command line arguments if a geoip2fast dat.gz filename is specified
-        match = re.match('.*geoip2fast.*\.dat\.gz',arg)
+        match = re.match(r'.*geoip2fast.*\.dat\.gz',arg)
         if (match):
             geoip2fast_datafile = match.group(0)
             sys.argv.pop(sys.argv.index(geoip2fast_datafile))
             break
         else:
-            match = re.match('.*geoip2fast.*\.dat',arg)
+            match = re.match(r'.*geoip2fast.*\.dat',arg)
             if (match):
                 geoip2fast_datafile = match.group(0)
                 sys.argv.pop(sys.argv.index(geoip2fast_datafile))
