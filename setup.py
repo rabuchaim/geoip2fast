@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='geoip2fast',
-    version='1.2.2',
+    version='1.2.3',
     description='GeoIP2Fast is the fastest GeoIP2 country/city/asn lookup library that supports IPv4 and IPv6. A search takes less than 0.00003 seconds. It has its own data file updated twice a week with Maxmind-Geolite2-CSV, supports IPv4/IPv6 and is Pure Python!',
     url='https://github.com/rabuchaim/geoip2fast',
     author='Ricardo Abuchaim',
@@ -15,8 +15,8 @@ setup(
         "Source code": "https://github.com/rabuchaim/geoip2fast",
         "Latest DAT files": "https://github.com/rabuchaim/geoip2fast/releases/latest",
         "Legacy v1.1.X DAT files": "https://github.com/rabuchaim/geoip2fast/releases/tag/LEGACY",
-    },    
-    bugtrack_url='https://github.com/rabuchaim/geoip2fast/issues',    
+    },
+    bugtrack_url='https://github.com/rabuchaim/geoip2fast/issues',
     license='MIT',
     keywords=['geoip','geoip2','geolite2','maxmind','geoip2fast','geolocation','geolocalization','geo ip','ipaddress','ip','geo','ipv4','ipv6','pure-python','purepython','pure python','geoiptofast','geoiptoofast','geoip2dat','mmdb','tools'],
     packages=['geoip2fast'],
@@ -26,7 +26,7 @@ setup(
     zip_safe = False,
     package_data={
         'geoip2fast': [
-            'CHANGELOG', 
+            'CHANGELOG',
             'geoip2fast.dat.gz',
             'geoip2fast-ipv6.dat.gz',
             'geoip2fast-asn.dat.gz',
@@ -76,7 +76,7 @@ setup(
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
-        'Programming Language :: Python :: 3.10',  
+        'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3.11',
         'Programming Language :: Python :: 3.12',
         'Programming Language :: Python :: 3.13',
