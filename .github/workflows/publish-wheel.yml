@@ -1,0 +1,59 @@
+name: Publish Python Package
+
+on: workflow_dispatch
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade setuptools wheel twine
+
+      - name: Extract version from setup.py
+        id: get_version
+        run: |
+          version=$(python -c "import re; print(re.search(r'version=\\'([0-9]+\\.[0-9]+\\.[0-9]+)\\'', open('setup.py').read()).group(1))")
+          echo "version=$version" >> $GITHUB_ENV
+
+      - name: Build wheel
+        run: |
+          python setup.py bdist_wheel
+
+      - name: Delete existing Git tag using GitHub API
+        run: |
+          TAG="v${{ env.version }}"
+          REPO="${{ github.repository }}"
+          TOKEN="${{ secrets.GITHUB_TOKEN }}"
+          DELETE_URL="https://api.github.com/repos/$REPO/git/refs/tags/$TAG"
+
+          # Attempt to delete the tag, ignore if it doesn't exist
+          curl -X DELETE -H "Authorization: token $TOKEN" $DELETE_URL || echo "Tag $TAG does not exist, nothing to delete."
+
+      - name: Create Git tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "v${{ env.version }}" -m "Release v${{ env.version }}"
+          git push origin fix/add-publish-package-workflow --tags
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+#          files: dist/geoip2fast-${{ env.version }}-py3-none-any.whl
+          files: dist/*.whl
+          tag_name: "v${{ env.version }}"
+          fail_on_unmatched_files: true
